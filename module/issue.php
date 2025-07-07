@@ -447,14 +447,103 @@ class Issue extends Encription
 		return json_encode($result);
 	}	
 
+	public function markAllNotifRead() {
+		try {
+			// Mark all unread notifications as read
+			$query = "UPDATE MComCli SET isRead = 1 WHERE isRead = 0";
+			$result = $this->db->execute($query);
+			
+			return json_encode([
+				'status' => 'success',
+				'message' => 'All notifications marked as read'
+			]);
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error', 
+				'message' => 'Error marking notifications as read: ' . $e->getMessage()
+			]);
+		}
+	}
+
 	public function markNotifReadByNoCom() {
 		$noCom = isset($_POST['NoCom']) ? $_POST['NoCom'] : '';
-		if ($noCom) {
+		
+		if (empty($noCom)) {
+			return json_encode([
+				'status' => 'error', 
+				'message' => 'NoCom tidak dikirim'
+			]);
+		}
+		
+		try {
+			// Use prepared statement for security
 			$query = "UPDATE MComCli SET isRead = 1 WHERE NoCom = ?";
-			$this->db->execute($query, [$noCom]);
-			return json_encode(['status' => 'success']);
-		} else {
-			return json_encode(['status' => 'error', 'message' => 'NoCom tidak dikirim']);
+			$result = $this->db->execute($query, [$noCom]);
+			
+			return json_encode([
+				'status' => 'success',
+				'message' => 'Notification marked as read'
+			]);
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Error: ' . $e->getMessage()
+			]);
+		}
+	}
+
+	public function markNotifReadByNoIssue() {
+		$noIssue = isset($_POST['NoIssue']) ? $_POST['NoIssue'] : '';
+		
+		if (empty($noIssue)) {
+			return json_encode([
+				'status' => 'error', 
+				'message' => 'NoIssue tidak dikirim'
+			]);
+		}
+		
+		try {
+			// Mark all notifications for this issue as read
+			$query = "UPDATE MComCli SET isRead = 1 WHERE NoIssue = ? AND isRead = 0";
+			$result = $this->db->execute($query, [$noIssue]);
+			
+			return json_encode([
+				'status' => 'success',
+				'message' => 'All notifications for issue marked as read'
+			]);
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Error: ' . $e->getMessage()
+			]);
+		}
+	}
+
+	public function markChatAsRead() {
+		$noIssue = isset($_POST['NoIssue']) ? $_POST['NoIssue'] : '';
+		$currentUser = isset($_SESSION[_session_app_id]['emp_no']) ? $_SESSION[_session_app_id]['emp_no'] : '';
+		
+		if (empty($noIssue)) {
+			return json_encode([
+				'status' => 'error', 
+				'message' => 'NoIssue tidak dikirim'
+			]);
+		}
+		
+		try {
+			// Mark all chat messages as read for this issue except messages from current user
+			$query = "UPDATE MComCli SET isRead = 1 WHERE NoIssue = ? AND Dari != ? AND isRead = 0";
+			$result = $this->db->execute($query, [$noIssue, $currentUser]);
+			
+			return json_encode([
+				'status' => 'success',
+				'message' => 'Chat marked as read'
+			]);
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Error: ' . $e->getMessage()
+			]);
 		}
 	}
 	

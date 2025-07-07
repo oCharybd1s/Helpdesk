@@ -503,19 +503,7 @@
                 ticketList.appendChild(ticketItem);
             });
         }
-        function formatWaktu(waktuString) {
-            const date = new Date(waktuString);
-            if (isNaN(date)) {
-                console.warn("⛔ Waktu tidak valid:", waktuString);
-                return waktuString || "-";
-            }
-            const jam = String(date.getHours()).padStart(2, '0');
-            const menit = String(date.getMinutes()).padStart(2, '0');
-            const hari = String(date.getDate()).padStart(2, '0');
-            const bulan = String(date.getMonth() + 1).padStart(2, '0');
-            const tahun = date.getFullYear();
-            return `${jam}:${menit} ${hari}/${bulan}/${tahun}`;
-        }
+        // UPDATED DASHBOARD JAVASCRIPT - Replace the existing functions with these fixed versions
 
         async function loadNotifications() {
             try {
@@ -548,9 +536,21 @@
                         </div>
                     `;
 
-                    notificationItem.addEventListener('click', () => {
-                        openIssue(notification.NoIssue, notification.NoCom);
+                    // FIX 1: Enhanced click handler for dashboard notification boxes
+                    notificationItem.addEventListener('click', async () => {
+                        try {
+                            // Mark this specific notification as read first
+                            await markNotificationAsRead(notification.NoIssue, notification.NoCom);
+                            
+                            // Then open the issue
+                            openIssue(notification.NoIssue, notification.NoCom);
+                        } catch (error) {
+                            console.error("❌ Error handling notification click:", error);
+                            // Still open the issue even if marking as read fails
+                            openIssue(notification.NoIssue, notification.NoCom);
+                        }
                     });
+                    
                     container.appendChild(notificationItem);
                 });
 
@@ -559,34 +559,96 @@
             }
         }
 
+        // FIX 2: Enhanced markAllRead function with proper error handling
         async function markAllRead() {
             try {
                 const response = await sendPost("Issue", { type_submit: "markAllNotifRead" });
 
                 if (response.status === 'success') {
                     showToast('All notifications marked as read!');
+                    // Refresh notifications to update UI
                     loadNotifications(); 
                 } else {
-                    showToast('Gagal menandai notifikasi.');
+                    showToast('Failed to mark notifications as read: ' + (response.message || 'Unknown error'));
                 }
             } catch (error) {
                 console.error("🚨 Gagal update notifikasi:", error);
-                showToast('Terjadi kesalahan.');
+                showToast('Error occurred while marking notifications as read');
             }
         }
 
+        // FIX 3: New function to mark individual notification as read
+        async function markNotificationAsRead(noIssue, noCom) {
+            try {
+                // If we have NoCom, mark by NoCom, otherwise mark by NoIssue
+                if (noCom) {
+                    await sendPost("Issue", {
+                        type_submit: "markNotifReadByNoCom",
+                        NoCom: noCom
+                    });
+                } else if (noIssue) {
+                    await sendPost("Issue", {
+                        type_submit: "markNotifReadByNoIssue", 
+                        NoIssue: noIssue
+                    });
+                }
+                
+                console.log("✅ Notification marked as read");
+                return true;
+            } catch (error) {
+                console.error("❌ Failed to mark notification as read:", error);
+                return false;
+            }
+        }
+
+        // FIX 4: Enhanced openIssue function
         async function openIssue(noIssue, noCom) {
             try {
-                await sendPost("Issue", {
-                    type_submit: "markNotifReadByNoCom",
-                    NoCom: noCom
-                });
+                // Mark notification as read before opening
+                if (noCom) {
+                    await sendPost("Issue", {
+                        type_submit: "markNotifReadByNoCom",
+                        NoCom: noCom
+                    });
+                }
+                
+                // Navigate to the issue page
                 page.view('helpdesk/editIssue_helpdesk', '', { id_Issue: noIssue });
+                
+                console.log("✅ Issue opened:", noIssue);
             } catch (error) {
-                console.error("❌ Gagal menandai notifikasi sebagai dibaca:", error);
+                console.error("❌ Error opening issue:", error);
+                // Still try to navigate even if marking as read fails
+                page.view('helpdesk/editIssue_helpdesk', '', { id_Issue: noIssue });
             }
         }
 
+        // FIX 5: Add these new functions for dashboard widgets/boxes
+        function addDashboardClickHandlers() {
+            // Add click handlers to any dashboard cards/boxes that should mark notifications as read
+            const dashboardCards = document.querySelectorAll('.card, .dashboard-card, .info-box, .widget');
+            
+            dashboardCards.forEach(card => {
+                if (card.dataset.issueId || card.dataset.notificationId) {
+                    card.addEventListener('click', async function() {
+                        const issueId = this.dataset.issueId;
+                        const notificationId = this.dataset.notificationId;
+                        
+                        if (issueId) {
+                            await markNotificationAsRead(issueId, notificationId);
+                        }
+                    });
+                }
+            });
+        }
+
+        // Enhanced initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            loadNotifications();
+            addDashboardClickHandlers();
+        });
+
+        // Keep existing functions with enhancements
         function refreshActivity() {
             showToast('Activity log refreshed!');
             loadRecentActivity();
@@ -611,16 +673,32 @@
         function showToast(message) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toast-message');
-            toastMessage.textContent = message;
-            toast.classList.add('show');
-            
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 3000);
+            if (toast && toastMessage) {
+                toastMessage.textContent = message;
+                toast.classList.add('show');
+                
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 3000);
+            } else {
+                // Fallback if toast elements don't exist
+                alert(message);
+            }
         }
 
-        // Initialize dashboard
-        loadNotifications()
+        function formatWaktu(waktuString) {
+            const date = new Date(waktuString);
+            if (isNaN(date)) {
+                console.warn("⛔ Waktu tidak valid:", waktuString);
+                return waktuString || "-";
+            }
+            const jam = String(date.getHours()).padStart(2, '0');
+            const menit = String(date.getMinutes()).padStart(2, '0');
+            const hari = String(date.getDate()).padStart(2, '0');
+            const bulan = String(date.getMonth() + 1).padStart(2, '0');
+            const tahun = date.getFullYear();
+            return `${jam}:${menit} ${hari}/${bulan}/${tahun}`;
+        }
     </script>
 </body>
 </html>
