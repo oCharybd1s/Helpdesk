@@ -1,0 +1,50 @@
+aturan framework:
+
+Folder config:
+	untuk menyimpan konfigurasi yang bersifat global
+
+Folder page:
+	menyimpan file halaman berisikan kode html/css/php/javascript  
+	- file halaman baru di simpan di folder "page" dengan format PHP
+	- javascript/function yang berhubungan dengan masing" halaman, di tulis di file halamannya masing"
+	- javascript/function yang bersifat global atau dapat digunakan di banyak halaman di simpan di file: sis_core/js/js/default.js
+	- halaman baru yang dibuat dapat dipanggil menggunakan fungsi javascript : page.view('[page_filename.php]', '[title(optional)]', {[variable yang dikirim/post(optional)]})
+
+Folder module : 
+	untuk menyimpan semua action/pengolahan data dalam bentuk PHP
+	- fungsi/action pengolahan data PHP di simpan di folder "module" dengan format PHP dalam bentuk class
+	- pemanggilan dapat menggunakan fungsi javascript : 
+			sendPost('module class name', 
+			{
+					type_submit:'[nama fungsi dalam class]', 
+					[variabel 1]:[isi variable],
+					[variabel 2]:[isi variable],
+					dst
+			});
+			
+	- pemanggilan api rutan dapat menggunakan function javascript :
+		rutanApi([target_name], [api_key], {data_post});
+		ex =  rutanApi("GetDataKaryawan", "oN6OH83TbuNLFGB1x59s", {
+		  		iddbase:"DB00000023",
+   				idapi:"API0000121",
+ 				emp_noAPI0000121: '012114'
+			});
+
+Folder helper:
+	berisikan fungsi" global PHP digunakan untuk membantu mempermudah proses/pengolahan data
+
+Folder src: 
+	menyimpan data" pendukung
+
+Folder template: 
+	untuk menyimpan dasar template (login/halaman utama) yang akan di gunakan
+	- template memiliki dasar 2 file (index.php dan login.php)
+	- template yang digunakan dapat diatur lewat :config/config.php
+	- jika ingin menggunakan beberapa template yang berbeda sekaligus, dapat di custome lewat index.php (file paling luar) sesuai custome yang di inginkan
+	- pada file index.php (dalam template), harus terdapat tag dengan id "rutan_content" yang digunakan sebagai media/tempat file halaman yang di panggil 
+
+Folder siscore:
+	digunakan untuk menyimpan variable global dan file" pendukung dan module yang sifatnya require/harus ada
+	- penambahan variable atau file pendukung di muat di file: sis_core/js/autoload.php 
+	- penambahan module yang bersifat require di usahakan berbentuk class
+	

@@ -1,0 +1,58 @@
+
+.terra-bg-1-a, .terra-bg-1-a th, .terra-bg-hover-1-a:hover{
+	/*background-color: #088378;*/
+	background-color: #0b685e;
+	color: #fff;
+}
+.terra-bg-1-b, .terra-bg-1-b th, .terra-bg-hover-1-b:hover{
+  /*background-color: #088378;*/
+  background-color: #0f8679;
+  color: #fff;
+}
+.terra-bg-1, .terra-bg-1 th, .terra-bg-hover-1:hover{
+  /*background-color: #088378;*/
+  background: -webkit-linear-gradient(#0b685e, #0f8679);
+  color: #fff;
+}
+.terra-bg-2, .terra-bg-2 th, .terra-bg-hover-2:hover{
+	background-color: #009B4C;
+	color: #fff;
+}
+.terra-bg-3, .terra-bg-3 th, .terra-bg-hover-3:hover{
+	background-color: #7DBB37;
+	color: #fff;
+}
+.terra-bg-4, .terra-bg-4 th, .terra-bg-hover-4:hover{
+	background-color: #A2CB38;
+}
+.terra-bg-5, .terra-bg-5 th, .terra-bg-hover-5:hover{
+	background-color: #EBDA13;
+}
+.terra-bg-6, .terra-bg-6 th, .terra-bg-hover-6:hover{
+	background-color: #EBBCOD;
+}
+.terra-bg-disable, .terra-bg-disable th, .terra-bg-hover-disable:hover{
+  background-color: #eee;
+  color: #b9babb;
+}
+.text-black {
+    color: #000!important;
+}
+.terra-text-1 {
+  color: #088378 !important;
+}
+.terra-text-2 {
+  color: #009B4C !important;
+}
+.terra-text-3 {
+  color: #7DBB37 !important;
+}
+.terra-text-4 {
+  color: #A2CB38 !important;
+}
+.terra-text-5 {
+  color: #EBDA13 !important;
+}
+.terra-text-6 {
+  color: #EBBCOD !important;
+}

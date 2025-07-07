@@ -1,0 +1,17 @@
+function printApk() {
+        tmp_post = sendPost("Issue", { type_submit: "getApk" });
+        htmlbody = "";
+        $.each(tmp_post, function (index, row) {
+            if (row.Aktif == 1) {
+                htmlbody += `
+                    <option value="${row.Apl}">${row.NamaAplikasi}</option>
+                `;
+            };
+        });
+        $('#floatingSelect4').html(`
+            <option value="" selected disabled>Open this select menu</option>
+            ${htmlbody}
+        `);
+    }
+
+    printApk();
