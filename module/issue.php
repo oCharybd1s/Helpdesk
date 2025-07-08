@@ -497,27 +497,42 @@ class Issue extends Encription
 		
 		if (empty($noIssue)) {
 			return json_encode([
-				'status' => 'error', 
+				'status' => 'error',
 				'message' => 'NoIssue tidak dikirim'
 			]);
 		}
-		
+	
 		try {
-			// Mark all notifications for this issue as read
 			$query = "UPDATE MComCli SET isRead = 1 WHERE NoIssue = ? AND isRead = 0";
-			$result = $this->db->execute($query, [$noIssue]);
-			
-			return json_encode([
-				'status' => 'success',
-				'message' => 'All notifications for issue marked as read'
-			]);
+			$params = [$noIssue];
+			foreach ($params as $val) {
+				$val = is_numeric($val) ? $val : "'" . addslashes($val) . "'";
+				$query = preg_replace('/\?/', $val, $query, 1);
+			}
+			$result = $this->db->execute($query); 
+	
+			if ($result) {
+				return json_encode([
+					'status' => 'success',
+					'message' => 'All notifications for issue marked as read',
+					'updated_rows' => $result,
+					'NoIssue' => $noIssue
+				]);
+			} else {
+				return json_encode([
+					'status' => 'error',
+					'message' => 'No rows updated or already read',
+					'NoIssue' => $noIssue
+				]);
+			}
+	
 		} catch (Exception $e) {
 			return json_encode([
 				'status' => 'error',
-				'message' => 'Error: ' . $e->getMessage()
+				'message' => 'Exception: ' . $e->getMessage()
 			]);
 		}
-	}
+	}	
 
 	public function markChatAsRead() {
 		$noIssue = isset($_POST['NoIssue']) ? $_POST['NoIssue'] : '';
@@ -577,13 +592,22 @@ class Issue extends Encription
 				"AcceptWork" => $AcceptWork,
 				"Rating" => $Rating
 			]);
+			$st_gmbr = [];
+			if (!empty($_FILES)) {
+				foreach ($_FILES['file']['tmp_name'] as $key => $tmp) {
+					$NamaFile = $No . "_" . ($key + 1) . "." . pathinfo($_FILES['file']['name'][$key], PATHINFO_EXTENSION);
+					$st_gmbr[] = json_decode($this->postHD($No, $key + 1, $NamaFile, $key), true);
+				}
+			}
+	
 			if ($result) {
 				return json_encode([
 					'status' => 'success',
 					'message' => 'Issue inserted successfully',
+					'st_gmbr' => $st_gmbr
 				]);
 			} else {
-				return json_encode(['status' => 'error', 'message' => 'Failed to insert issue']);
+				return json_encode(['status' => 'error', 'message' => 'Failed to insert pengajuan']);
 			}
 		} catch (Exception $e) {
 			return json_encode(['status' => 'error', 'message' => 'Error: ' . $e->getMessage()]);
@@ -687,5 +711,262 @@ class Issue extends Encription
 	
 		return "{$prefix}{$urutan}";
 	}	
+
+
+	public function createDummyIssue() {
+		try {
+			// Generate unique issue number
+			$issueNo = $this->generateTestIssueNumber();
+			
+			$dummyIssueData = [
+				'No' => $issueNo,
+				'prioritas' => 'Medium',
+				'Tanggal' => date('Y-m-d H:i:s'),
+				'dari' => 'TEST_USER_001',
+				'tujuan' => '000830',
+				'kategori' => 'Testing',
+				'Jenis' => 'Test Issue',
+				'Aplikasi' => 'Dummy App',
+				'issue' => 'This is a test issue created for notification testing',
+				'accPATA' => 1,
+				'AcceptWork' => 1,
+				'ditangani' => null,
+				'TanggalSelesai' => null
+			];
+			
+			$result = $this->db->insert("MIssue", $dummyIssueData);
+			
+			if ($result) {
+				return json_encode([
+					'status' => 'success',
+					'message' => 'Dummy issue created successfully',
+					'issue_no' => $issueNo
+				]);
+			} else {
+				return json_encode([
+					'status' => 'error',
+					'message' => 'Failed to create dummy issue'
+				]);
+			}
+			
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Error creating dummy issue: ' . $e->getMessage()
+			]);
+		}
+	}
+	
+	/**
+	 * Generate test issue number
+	 */
+	private function generateTestIssueNumber() {
+		$year = date('Y');
+		$shortYear = substr($year, -2);
+		$timestamp = date('His'); // Hour, minute, second
+		$random = rand(100, 999);
+		return "TEST/$shortYear/$timestamp$random";
+	}
+	
+	/**
+	 * Create dummy chat messages for testing
+	 */
+	public function createDummyChat() {
+		$NoIssue = isset($_POST['NoIssue']) ? $_POST['NoIssue'] : $this->generateTestIssueNumber();
+		$Waktu = isset($_POST['Waktu']) ? $_POST['Waktu'] : date('Y-m-d H:i:s');
+		$Dari = isset($_POST['Dari']) ? $_POST['Dari'] : 'TEST_USER_001';
+		$Isi = isset($_POST['Isi']) ? $_POST['Isi'] : 'This is a test message for notification testing';
+		$idUser = isset($_POST['idUser']) ? $_POST['idUser'] : '000830';
+		
+		try {
+			// First ensure the issue exists (create if it doesn't)
+			$this->ensureTestIssueExists($NoIssue);
+			
+			// Create the chat message
+			$chatData = [
+				'NoIssue' => $NoIssue,
+				'Waktu' => $Waktu,
+				'Dari' => $Dari,
+				'Isi' => $Isi,
+				'isRead' => 0, // Always unread for testing
+				'idUser' => $idUser
+			];
+			
+			$result = $this->db->insert("MComCli", $chatData);
+			
+			if ($result) {
+				return json_encode([
+					'status' => 'success',
+					'message' => 'Dummy chat message created successfully',
+					'data' => $chatData
+				]);
+			} else {
+				return json_encode([
+					'status' => 'error',
+					'message' => 'Failed to create dummy chat message'
+				]);
+			}
+			
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Error creating dummy chat: ' . $e->getMessage()
+			]);
+		}
+	}
+	
+	/**
+	 * Ensure test issue exists, create if it doesn't
+	 */
+	private function ensureTestIssueExists($issueNo) {
+		try {
+			// Check if issue exists
+			$checkQuery = "SELECT COUNT(*) as count FROM MIssue WHERE No = ?";
+			$result = $this->db->execute($checkQuery, [$issueNo]);
+			
+			if ($result[0]['count'] == 0) {
+				// Issue doesn't exist, create it
+				$issueData = [
+					'No' => $issueNo,
+					'prioritas' => 'Medium',
+					'Tanggal' => date('Y-m-d H:i:s'),
+					'dari' => 'TEST_USER_001',
+					'tujuan' => '000830',
+					'kategori' => 'Testing',
+					'Jenis' => 'Test Issue',
+					'Aplikasi' => 'Test App',
+					'issue' => 'Auto-created test issue for chat testing',
+					'accPATA' => 1,
+					'AcceptWork' => 1,
+					'ditangani' => null,
+					'TanggalSelesai' => null
+				];
+				
+				$this->db->insert("MIssue", $issueData);
+			}
+			
+			return true;
+		} catch (Exception $e) {
+			error_log("Error ensuring test issue exists: " . $e->getMessage());
+			return false;
+		}
+	}
+	
+	/**
+	 * Clear test data (remove dummy messages and issues)
+	 */
+	public function clearTestData() {
+		try {
+			// Delete test chat messages
+			$deleteChatQuery = "DELETE FROM MComCli WHERE Dari LIKE 'TEST_%' OR NoIssue LIKE 'TEST/%'";
+			$this->db->execute($deleteChatQuery);
+			
+			// Delete test issues  
+			$deleteIssueQuery = "DELETE FROM MIssue WHERE No LIKE 'TEST/%' OR dari LIKE 'TEST_%'";
+			$this->db->execute($deleteIssueQuery);
+			
+			return json_encode([
+				'status' => 'success',
+				'message' => 'Test data cleared successfully'
+			]);
+			
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Error clearing test data: ' . $e->getMessage()
+			]);
+		}
+	}
+	
+	/**
+	 * Create multiple dummy messages for batch testing
+	 */
+	public function createBatchDummyChats() {
+		$count = isset($_POST['count']) ? intval($_POST['count']) : 5;
+		$targetUser = isset($_POST['targetUser']) ? $_POST['targetUser'] : '000830';
+		
+		try {
+			$created = 0;
+			$senders = ['000630', '000351', '000379', '000772', '000543'];
+			$messages = [
+				'Hello, I need help with my computer',
+				'The printer is not working properly',
+				'Can you help me reset my password?',
+				'System is running very slow today',
+				'Need assistance with software installation',
+				'Error message keeps appearing',
+				'Cannot access shared folder',
+				'Email is not syncing properly',
+				'Software license expired',
+				'Network connection issues'
+			];
+			
+			for ($i = 0; $i < $count; $i++) {
+				$issueNo = $this->generateTestIssueNumber();
+				$this->ensureTestIssueExists($issueNo);
+				
+				$chatData = [
+					'NoIssue' => $issueNo,
+					'Waktu' => date('Y-m-d H:i:s', time() + ($i * 60)), // Stagger by minutes
+					'Dari' => $senders[$i % count($senders)],
+					'Isi' => $messages[$i % count($messages)],
+					'isRead' => 0,
+					'idUser' => $targetUser
+				];
+				
+				$result = $this->db->insert("MComCli", $chatData);
+				if ($result) $created++;
+			}
+			
+			return json_encode([
+				'status' => 'success',
+				'message' => "$created dummy chat messages created successfully",
+				'created_count' => $created
+			]);
+			
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Error creating batch dummy chats: ' . $e->getMessage()
+			]);
+		}
+	}
+	
+	/**
+	 * Get test data statistics
+	 */
+	public function getTestDataStats() {
+		try {
+			// Count test chats
+			$chatQuery = "SELECT COUNT(*) as count FROM MComCli WHERE Dari LIKE 'TEST_%' OR NoIssue LIKE 'TEST/%'";
+			$chatResult = $this->db->execute($chatQuery);
+			$chatCount = $chatResult[0]['count'];
+			
+			// Count test issues
+			$issueQuery = "SELECT COUNT(*) as count FROM MIssue WHERE No LIKE 'TEST/%' OR dari LIKE 'TEST_%'";
+			$issueResult = $this->db->execute($issueQuery);
+			$issueCount = $issueResult[0]['count'];
+			
+			// Count unread test messages
+			$unreadQuery = "SELECT COUNT(*) as count FROM MComCli WHERE (Dari LIKE 'TEST_%' OR NoIssue LIKE 'TEST/%') AND isRead = 0";
+			$unreadResult = $this->db->execute($unreadQuery);
+			$unreadCount = $unreadResult[0]['count'];
+			
+			return json_encode([
+				'status' => 'success',
+				'stats' => [
+					'test_chats' => $chatCount,
+					'test_issues' => $issueCount,
+					'unread_test_messages' => $unreadCount
+				]
+			]);
+			
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Error getting test data stats: ' . $e->getMessage()
+			]);
+		}
+	}
 }
 ?>

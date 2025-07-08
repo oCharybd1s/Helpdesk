@@ -553,62 +553,62 @@
     printPegawai()
 
     document.querySelector(".btnPost").addEventListener("click", async function (event) {
-    event.preventDefault();
+        event.preventDefault();
 
-    function pad(num, size) {
-        return num.toString().padStart(size, '0');
-    }
-
-    try {
-        let accPATA = await sendPost("Issue", { type_submit: "getAtP" });
-
-        let prioritas = null;
-        let TanggalKonfirmasi = null;
-
-        if (accPATA == 1) {
-            prioritas = 2;
-            let now = new Date();
-            let utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-            let gm7 = new Date(utc + (7 * 60 * 60000));
-            TanggalKonfirmasi = `${gm7.getFullYear()}-${pad(gm7.getMonth() + 1, 2)}-${pad(gm7.getDate(), 2)} ` +
-                `${pad(gm7.getHours(), 2)}:${pad(gm7.getMinutes(), 2)}:${pad(gm7.getSeconds(), 2)}.${pad(gm7.getMilliseconds(), 3)}`;
+        function pad(num, size) {
+            return num.toString().padStart(size, '0');
         }
 
-        let No = await sendPost("Issue", { type_submit: "issueGenID" });
+        try {
+            let accPATA = await sendPost("Issue", { type_submit: "getAtP" });
 
-        let takePegawai = document.getElementById("takePegawai")?.value || "";
-        let tujuanHelpdesk = parseInt(document.getElementById("floatingSelect1")?.value) || 0;
-        let kategori = parseInt(document.getElementById("floatingSelect2")?.value) || 0;
-        let jenisLaporan = parseInt(document.getElementById("floatingSelect3")?.value) || 0;
-        let program = parseInt(document.getElementById("floatingSelect4")?.value) || 0;
-        let deskripsi = document.querySelector("textarea")?.value || "";
-        // let inputFiles = document.getElementById("inputGroupFile03").files;
+            let prioritas = null;
+            let TanggalKonfirmasi = null;
 
-        let data = {
-            No,
-            prioritas,
-            Tanggal: window.rawTimestamp || new Date().toISOString(),
-            dari: takePegawai,
-            tujuan: tujuanHelpdesk,
-            kategori,
-            Jenis: jenisLaporan,
-            Aplikasi: program,
-            issue: deskripsi,
-            accPATA,
-            TanggalKonfirmasi,
-            Rating: 0,
-            StNotifPATA: 0,
-            StNotifIT: 0,
-            StNotifStf: 0
-        };
+            if (accPATA == 1) {
+                prioritas = 2;
+                let now = new Date();
+                let utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+                let gm7 = new Date(utc + (7 * 60 * 60000));
+                TanggalKonfirmasi = `${gm7.getFullYear()}-${pad(gm7.getMonth() + 1, 2)}-${pad(gm7.getDate(), 2)} ` +
+                    `${pad(gm7.getHours(), 2)}:${pad(gm7.getMinutes(), 2)}:${pad(gm7.getSeconds(), 2)}.${pad(gm7.getMilliseconds(), 3)}`;
+            }
 
-        let response = await sendPost("Issue", "createHD", "helpdeskForm", data);
-    } catch (error) {
-        console.error("🚨 Unexpected Error:", error);
-        showToast(false);
-    }
-});
+            let No = await sendPost("Issue", { type_submit: "issueGenID" });
 
+            let takePegawai = document.getElementById("takePegawai")?.value || "";
+            let tujuanHelpdesk = parseInt(document.getElementById("floatingSelect1")?.value) || 0;
+            let kategori = parseInt(document.getElementById("floatingSelect2")?.value) || 0;
+            let jenisLaporan = parseInt(document.getElementById("floatingSelect3")?.value) || 0;
+            let program = parseInt(document.getElementById("floatingSelect4")?.value) || 0;
+            let deskripsi = document.querySelector("textarea")?.value || "";
+            let inputFiles = document.getElementById("inputGroupFile03").files;
+
+            let data = {
+                No,
+                prioritas,
+                Tanggal: window.rawTimestamp || new Date().toISOString(),
+                dari: takePegawai,
+                tujuan: tujuanHelpdesk,
+                kategori,
+                Jenis: jenisLaporan,
+                Aplikasi: program,
+                issue: deskripsi,
+                accPATA,
+                TanggalKonfirmasi,
+                Rating: 0,
+                StNotifPATA: 0,
+                StNotifIT: 0,
+                StNotifStf: 0,
+                file: inputFiles
+            };
+
+            let response = submitPost("Issue", "createHD", "helpdeskForm", data);
+        } catch (error) {
+            console.error("🚨 Unexpected Error:", error);
+            showToast(false);
+        }
+    });
 
     function showToast(isSuccess) {
         const toast = document.getElementById("toast");
@@ -627,16 +627,16 @@
         }, 3000);
     }
 
-    async function submitPost(action, method, formId, formData) {
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                resolve({
-                    status: Math.random() > 0.2 ? "success" : "error", 
-                    st_gmbr: [{ status: "success" }]
-                });
-            }, 1000);
-        });
-    }
+    // async function submitPost(action, method, formId, formData) {
+    //     return new Promise((resolve) => {
+    //         setTimeout(() => {
+    //             resolve({
+    //                 status: Math.random() > 0.2 ? "success" : "error", 
+    //                 st_gmbr: [{ status: "success" }]
+    //             });
+    //         }, 1000);
+    //     });
+    // }
 
     selectedFiles = [];
 

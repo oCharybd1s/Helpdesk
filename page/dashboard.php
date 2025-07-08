@@ -559,6 +559,8 @@
             }
         }
 
+        loadNotifications();
+
         // FIX 2: Enhanced markAllRead function with proper error handling
         async function markAllRead() {
             try {
@@ -577,10 +579,8 @@
             }
         }
 
-        // FIX 3: New function to mark individual notification as read
         async function markNotificationAsRead(noIssue, noCom) {
             try {
-                // If we have NoCom, mark by NoCom, otherwise mark by NoIssue
                 if (noCom) {
                     await sendPost("Issue", {
                         type_submit: "markNotifReadByNoCom",
@@ -611,21 +611,16 @@
                         NoCom: noCom
                     });
                 }
-                
-                // Navigate to the issue page
                 page.view('helpdesk/editIssue_helpdesk', '', { id_Issue: noIssue });
                 
                 console.log("✅ Issue opened:", noIssue);
             } catch (error) {
                 console.error("❌ Error opening issue:", error);
-                // Still try to navigate even if marking as read fails
                 page.view('helpdesk/editIssue_helpdesk', '', { id_Issue: noIssue });
             }
         }
 
-        // FIX 5: Add these new functions for dashboard widgets/boxes
         function addDashboardClickHandlers() {
-            // Add click handlers to any dashboard cards/boxes that should mark notifications as read
             const dashboardCards = document.querySelectorAll('.card, .dashboard-card, .info-box, .widget');
             
             dashboardCards.forEach(card => {
@@ -699,6 +694,7 @@
             const tahun = date.getFullYear();
             return `${jam}:${menit} ${hari}/${bulan}/${tahun}`;
         }
+        
     </script>
 </body>
 </html>
