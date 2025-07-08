@@ -396,10 +396,226 @@ class Issue extends Encription
 		}
 	}	
 	
-	public function kerjakanIssue(){
-		$result = $this->db->update("MIssue",['ditangani' => '', ]);
-		// $result = $this->db->getAll('mIssue');
-		return json_encode($result);
+	public function kerjakanIssue($No = "", $estimasiMenit = 0) {
+		// Ambil dan bersihkan nilai No
+		$No = isset($_POST['No']) ? $_POST['No'] : $No;
+	
+		// Menghilangkan karakter escape seperti \/ menggunakan json_decode
+		$No = json_decode('"' . $No . '"');
+		$No = trim($No);
+	
+		// Ambil estimasi waktu
+		$estimasiMenit = isset($_POST['estimasiMenit']) ? intval($_POST['estimasiMenit']) : intval($estimasiMenit);
+	
+		// Ambil user dari session
+		$currentUser = $_SESSION[_session_app_id]['emp_no'] ?? '';
+	
+		// Tanggal dan waktu sekarang
+		$currentDateTime = date('Y-m-d H:i:s') . '.' . substr(microtime(false), 2, 3);
+	
+		// Validasi input
+		if (empty($No)) {
+			return json_encode(['status' => 'error', 'message' => 'No Issue is required'], JSON_UNESCAPED_SLASHES);
+		}
+	
+		if (empty($currentUser)) {
+			return json_encode(['status' => 'error', 'message' => 'User not authenticated'], JSON_UNESCAPED_SLASHES);
+		}
+	
+		if ($estimasiMenit <= 0) {
+			return json_encode(['status' => 'error', 'message' => 'Estimation time is required'], JSON_UNESCAPED_SLASHES);
+		}
+	
+		try {
+			// Cek apakah issue ada dan belum ditangani
+			$checkQuery = "SELECT Ditangani FROM MIssue WHERE No = '$No'";
+			$existingIssue = $this->db->execute($checkQuery);
+	
+			if (empty($existingIssue)) {
+				return json_encode(['status' => 'error', 'message' => 'Issue not found'], JSON_UNESCAPED_SLASHES);
+			}
+	
+			if (!empty($existingIssue[0]['Ditangani'])) {
+				return json_encode(['status' => 'error', 'message' => 'Issue already taken by another user'], JSON_UNESCAPED_SLASHES);
+			}
+	
+			// Try different approaches for SQL Server compatibility
+			
+			// Method 1: Try with explicit field updates (most compatible)
+			$updateQuery1 = "UPDATE MIssue SET Ditangani = '$currentUser' WHERE No = '$No'";
+			$result1 = $this->db->execute($updateQuery1);
+			
+			if ($result1 !== false) {
+				// Update AcceptWork separately
+				$updateQuery2 = "UPDATE MIssue SET AcceptWork = '$currentDateTime' WHERE No = '$No'";
+				$result2 = $this->db->execute($updateQuery2);
+				
+				if ($result2 !== false) {
+					// Update EstimasiMenit separately
+					$updateQuery3 = "UPDATE MIssue SET EstimasiMenit = $estimasiMenit WHERE No = '$No'";
+					$result3 = $this->db->execute($updateQuery3);
+					
+					if ($result3 !== false) {
+						return json_encode([
+							'status' => 'success',
+							'message' => 'Issue successfully taken',
+							'data' => [
+								'No' => $No,
+								'Ditangani' => $currentUser,
+								'AcceptWork' => $currentDateTime,
+								'EstimasiMenit' => $estimasiMenit
+							]
+						], JSON_UNESCAPED_SLASHES);
+					}
+				}
+			}
+			
+			// Method 2: Try with quoted datetime format if Method 1 fails
+			$updateQuery = "UPDATE MIssue SET Ditangani = '$currentUser', AcceptWork = CAST('$currentDateTime' AS DATETIME2), EstimasiMenit = $estimasiMenit WHERE No = '$No'";
+			$result = $this->db->execute($updateQuery);
+	
+			if ($result !== false) {
+				return json_encode([
+					'status' => 'success',
+					'message' => 'Issue successfully taken',
+					'data' => [
+						'No' => $No,
+						'Ditangani' => $currentUser,
+						'AcceptWork' => $currentDateTime,
+						'EstimasiMenit' => $estimasiMenit
+					]
+				], JSON_UNESCAPED_SLASHES);
+			}
+			
+			// Method 3: Try with different datetime format if Method 2 fails
+			$simpleDatetime = date('Y-m-d H:i:s');
+			$updateQuery = "UPDATE MIssue SET Ditangani = '$currentUser', AcceptWork = '$simpleDatetime', EstimasiMenit = $estimasiMenit WHERE No = '$No'";
+			$result = $this->db->execute($updateQuery);
+	
+			if ($result !== false) {
+				return json_encode([
+					'status' => 'success',
+					'message' => 'Issue successfully taken',
+					'data' => [
+						'No' => $No,
+						'Ditangani' => $currentUser,
+						'AcceptWork' => $simpleDatetime,
+						'EstimasiMenit' => $estimasiMenit
+					]
+				], JSON_UNESCAPED_SLASHES);
+			}
+			
+			// Method 4: Use prepared statement approach if all else fails
+			try {
+				$preparedQuery = "UPDATE MIssue SET Ditangani = ?, AcceptWork = ?, EstimasiMenit = ? WHERE No = ?";
+				$params = [$currentUser, $currentDateTime, $estimasiMenit, $No];
+				$result = $this->db->execute($preparedQuery, $params);
+				
+				if ($result !== false) {
+					return json_encode([
+						'status' => 'success',
+						'message' => 'Issue successfully taken (prepared statement)',
+						'data' => [
+							'No' => $No,
+							'Ditangani' => $currentUser,
+							'AcceptWork' => $currentDateTime,
+							'EstimasiMenit' => $estimasiMenit
+						]
+					], JSON_UNESCAPED_SLASHES);
+				}
+			} catch (Exception $preparedEx) {
+				// Continue to final error if prepared statement also fails
+			}
+	
+			// If all methods fail, return detailed error information
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Failed to update issue - all methods tried',
+				'debug_info' => [
+					'no' => $No,
+					'user' => $currentUser,
+					'datetime' => $currentDateTime,
+					'estimation' => $estimasiMenit,
+					'final_query' => $updateQuery,
+					'db_result' => $result
+				]
+			], JSON_UNESCAPED_SLASHES);
+	
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Error: ' . $e->getMessage(),
+				'debug_info' => [
+					'no' => $No,
+					'user' => $currentUser,
+					'datetime' => $currentDateTime
+				]
+			], JSON_UNESCAPED_SLASHES);
+		}
+	}
+	
+	
+	public function selesaikanIssue($No = "", $solusi = "", $catatan = "") {
+		$No = isset($_POST['No']) ? trim(strval($_POST['No'])) : trim(strval($No));
+		$No = stripslashes($No); // Remove escaped slashes
+		$solusi = isset($_POST['solusi']) ? trim(strval($_POST['solusi'])) : trim(strval($solusi));
+		$catatan = isset($_POST['catatan']) ? trim(strval($_POST['catatan'])) : trim(strval($catatan));
+		
+		$currentUser = $_SESSION[_session_app_id]['emp_no'] ?? '';
+		
+		$currentDateTime = date('Y-m-d H:i:s') . '.' . substr(microtime(false), 2, 3);
+		
+		try {
+			// Check if issue exists and is being worked on by current user
+			$checkQuery = "SELECT Ditangani, AcceptWork, EstimasiMenit, TanggalSelesai FROM MIssue WHERE No = '$No'";
+			$existingIssue = $this->db->execute($checkQuery);
+			
+			if (empty($existingIssue)) {
+				return json_encode(['status' => 'error', 'message' => 'Issue not found']);
+			}
+			
+			if ($existingIssue[0]['Ditangani'] !== $currentUser) {
+				return json_encode(['status' => 'error', 'message' => 'You are not assigned to this issue']);
+			}
+			
+			if (!empty($existingIssue[0]['TanggalSelesai'])) {
+				return json_encode(['status' => 'error', 'message' => 'Issue already completed']);
+			}
+			
+			// Calculate actual work time
+			$acceptTime = new DateTime($existingIssue[0]['AcceptWork']);
+			$finishTime = new DateTime($currentDateTime);
+			$actualMinutes = round(($finishTime->getTimestamp() - $acceptTime->getTimestamp()) / 60);
+			
+			// Escape strings for SQL safety
+			$escapedSolusi = str_replace("'", "''", $solusi);
+			$escapedCatatan = str_replace("'", "''", $catatan);
+			
+			// Update the issue with full SQL query
+			$updateQuery = "UPDATE MIssue SET TanggalSelesai = '$currentDateTime', Solusi = '$escapedSolusi', CatatanIT = '$escapedCatatan', AktualMenit = $actualMinutes WHERE No = '$No'";
+			
+			$result = $this->db->execute($updateQuery);
+			
+			if ($result !== false) {
+				return json_encode([
+					'status' => 'success',
+					'message' => 'Issue successfully completed',
+					'data' => [
+						'No' => $No,
+						'TanggalSelesai' => $currentDateTime,
+						'EstimasiMenit' => $existingIssue[0]['EstimasiMenit'],
+						'AktualMenit' => $actualMinutes,
+						'Solusi' => $solusi,
+						'CatatanIT' => $catatan
+					]
+				]);
+			} else {
+				return json_encode(['status' => 'error', 'message' => 'Failed to complete issue']);
+			}
+			
+		} catch (Exception $e) {
+			return json_encode(['status' => 'error', 'message' => 'Error: ' . $e->getMessage()]);
+		}
 	}
 
 	public function issueGenID(){
@@ -716,7 +932,9 @@ class Issue extends Encription
 	
 		return "{$prefix}{$urutan}";
 	}	
+	
 
+	//-----------------------------------------------------------
 
 	public function createDummyIssue() {
 		try {
@@ -762,9 +980,7 @@ class Issue extends Encription
 		}
 	}
 	
-	/**
-	 * Generate test issue number
-	 */
+
 	private function generateTestIssueNumber() {
 		$year = date('Y');
 		$shortYear = substr($year, -2);
