@@ -573,25 +573,30 @@ class Issue extends Encription
 		$Aplikasi = isset($_POST['Aplikasi']) ? trim(strval($_POST['Aplikasi'])) : trim(strval($Aplikasi));
 		$issue = isset($_POST['issue']) ? trim(strval($_POST['issue'])) : trim(strval($issue));
 		$accPATA = isset($_POST['accPATA']) ? trim(strval($_POST['accPATA'])) : trim(strval($accPATA));
-		$AcceptWork = isset($_POST['AcceptWork']) ? trim(strval($_POST['AcceptWork'])) : trim(strval($AcceptWork));
+		$TanggalKonfirmasi = isset($_POST['TanggalKonfirmasi']) ? trim(strval($_POST['TanggalKonfirmasi'])) : trim(strval($AcceptWork));
 		$Rating = isset($_POST['Rating']) ? intval($_POST['Rating']) : intval($Rating);
 		// dd([$_POST,$_FILES['file']]);
 
 		try {
-			$result = $this->db->insert("MIssue", [
-				"No" => $No,
-				"prioritas" => $prioritas,
-				"Tanggal" => $Tanggal,
-				"dari" => $dari,
-				"tujuan" => $tujuan,
-				"kategori" => $kategori,
-				"Jenis" => $Jenis,
-				"Aplikasi" => $Aplikasi,
-				"issue" => $issue,
-				"accPATA" => $accPATA,
-				"AcceptWork" => $AcceptWork,
-				"Rating" => $Rating
-			]);
+			if($accPATA == 1){
+				$result = $this->db->insert("MIssue", [
+					"No" => $No,
+					"prioritas" => $prioritas,
+					"Tanggal" => $Tanggal,
+					"dari" => $dari,
+					"tujuan" => $tujuan,
+					"kategori" => $kategori,
+					"Jenis" => $Jenis,
+					"Aplikasi" => $Aplikasi,
+					"issue" => $issue,
+					"accPATA" => $accPATA,
+					"Rating" => $Rating,
+					"autoppilot" => 1,
+					"TanggalKonfirmasi" => $TanggalKonfirmasi,
+					"Konfirmasi" => 1
+				]);
+			}
+			
 			$st_gmbr = [];
 			if (!empty($_FILES)) {
 				foreach ($_FILES['file']['tmp_name'] as $key => $tmp) {
