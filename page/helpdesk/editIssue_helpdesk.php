@@ -445,62 +445,62 @@ window.issueWorkflowData = window.issuePageData[0];
 // Initialize workflow phases
 function initializeWorkflow() {
     console.log('Initializing workflow with data:', window.issueWorkflowData);
-    
+    let check = sendPost("Issue", { type_submit: "getProses", id_Issue: window.id_Issue });
+    console.log(check)
+
     if (!window.issueWorkflowData) {
         console.error("Cannot initialize workflow: data is null");
         showPhase('estimation');
         return;
     }
     
-    // Check workflow state based on database fields
-    // Phase 1: Not started (Ditangani = null, TanggalSelesai = null)
-    if ((!window.issueWorkflowData.Ditangani || window.issueWorkflowData.Ditangani === null) && 
-        (!window.issueWorkflowData.TanggalSelesai || window.issueWorkflowData.TanggalSelesai === null)) {
-        console.log('Phase 1: Not started - Showing estimation form');
-        showPhase('estimation');
-        
-    // Phase 2: In Progress (Ditangani != null, TanggalSelesai = null)  
-    } else if (window.issueWorkflowData.Ditangani && window.issueWorkflowData.Ditangani !== null && 
-               (!window.issueWorkflowData.TanggalSelesai || window.issueWorkflowData.TanggalSelesai === null)) {
-        console.log('Phase 2: In Progress - Showing working timer');
-        showPhase('working');
-        
-        // Initialize timer if we have AcceptWork data
-        if (window.issueWorkflowData.AcceptWork) {
-            // Handle different datetime formats
-            let acceptWorkTime;
-            if (window.issueWorkflowData.AcceptWork.date) {
-                // If it's an object with date property
-                acceptWorkTime = window.issueWorkflowData.AcceptWork.date;
+    if (check && check.status) {
+        let status = parseInt(check.status); 
+
+        if (status === 1) {
+            console.log('Phase 1: Not started - Showing estimation form');
+            showPhase('estimation');
+
+        } else if (status === 2) {
+            console.log('Phase 2: In Progress - Showing working timer');
+            showPhase('working');
+
+            const timerInfo = sendPost("Issue", { type_submit: "getTimerInfo", id_Issue: window.id_Issue });
+
+            if (timerInfo && timerInfo.status === "success") {
+                const acceptWorkTime = timerInfo.data.AcceptWork;
+                const estMinutes = parseInt(timerInfo.data.EstIT) || 0;
+
+                window.startTime = new Date(acceptWorkTime);
+                window.estimatedMinutes = estMinutes;
+
+                console.log('Starting timer with DB data:', {
+                    startTime: window.startTime,
+                    estimatedMinutes: window.estimatedMinutes
+                });
+
+                startWorkTimer();
             } else {
-                // If it's a direct string
-                acceptWorkTime = window.issueWorkflowData.AcceptWork;
+                console.warn('Gagal ambil data timer dari DB:', timerInfo.message || timerInfo);
             }
-            
-            window.startTime = new Date(acceptWorkTime);
-            window.estimatedMinutes = parseInt(window.issueWorkflowData.EstimasiMenit) || 0;
-            
-            console.log('Starting timer with:', {
-                startTime: window.startTime,
-                estimatedMinutes: window.estimatedMinutes
-            });
-            
-            startWorkTimer();
+
+        } else if (status === 3) {
+            console.log('Phase 3: Finished - Showing completion details');
+            showPhase('completed');
+            displayCompletionDetails();
+
         } else {
-            console.warn('AcceptWork data not found for in-progress issue');
+            console.warn('Unknown status, defaulting to estimation phase');
+            showPhase('estimation');
         }
-        
-    // Phase 3: Finished (Ditangani != null, TanggalSelesai != null)
-    } else if (window.issueWorkflowData.Ditangani && window.issueWorkflowData.Ditangani !== null && 
-               window.issueWorkflowData.TanggalSelesai && window.issueWorkflowData.TanggalSelesai !== null) {
-        console.log('Phase 3: Finished - Showing completion details');
-        showPhase('completed');
-        displayCompletionDetails();
+
     } else {
-        console.warn('Unknown workflow state, defaulting to estimation phase');
+        console.error("Gagal mendapatkan status dari response:", check);
         showPhase('estimation');
     }
 }
+
+
 
 function showPhase(phase) {
     console.log('Showing phase:', phase);
@@ -606,45 +606,65 @@ function kerjakanIssue() {
 }
 
 function startWorkTimer() {
-    console.log('Starting work timer with estimated minutes:', window.issuePageData[0].EstIT);
-    
-    if (!window.issuePageData[0].EstIT || window.issuePageData[0].EstIT <= 0) {
-        console.error('Invalid estimated minutes:', window.issuePageData[0].EstIT);
+    console.log('Fetching start time and estimated minutes from backend...');
+
+    const timerInfo = sendPost("Issue", { type_submit: "getTimerInfo", id_Issue: window.issueId });
+
+    if (!timerInfo || !timerInfo.data) {
+        console.error("Timer info not received from server");
         return;
     }
-    
+
+    // Safely extract AcceptWork (date-time string)
+    let rawTimeStr = '';
+    if (typeof timerInfo.data.AcceptWork === 'object' && timerInfo.data.AcceptWork.date) {
+        rawTimeStr = timerInfo.data.AcceptWork.date;
+    } else if (typeof timerInfo.data.AcceptWork === 'string') {
+        rawTimeStr = timerInfo.data.AcceptWork;
+    } else {
+        console.error("Invalid AcceptWork format:", timerInfo.data.AcceptWork);
+        return;
+    }
+
+    // Convert to Date object
+    const formattedTime = rawTimeStr.replace(' ', 'T');
+    window.startTime = new Date(formattedTime);
+
+    // Parse estimated minutes
+    window.estimatedMinutes = parseInt(timerInfo.data.EstIT) || 0;
+
+    console.log('Starting work timer with:', {
+        startTime: window.startTime,
+        estimatedMinutes: window.estimatedMinutes
+    });
+
+    if (!window.estimatedMinutes || window.estimatedMinutes <= 0) {
+        console.error('Estimated minutes is invalid:', window.estimatedMinutes);
+        return;
+    }
+
     const estimatedTimeElement = document.getElementById('estimated-time');
     if (estimatedTimeElement) {
-        estimatedTimeElement.textContent =window.issuePageData[0].EstIT;
-        console.log('Set estimated time to:', window.issuePageData[0].EstIT);
-    } else {
-        console.error('estimated-time element not found');
+        estimatedTimeElement.textContent = window.estimatedMinutes;
     }
-    
+
     if (window.workTimer) {
         clearInterval(window.workTimer);
-        console.log('Cleared existing timer');
     }
-    
-    window.workTimer = setInterval(updateTimer, 1000); 
-    console.log('Started new timer with interval ID:', window.workTimer);
-    
+
+    window.workTimer = setInterval(updateTimer, 1000);
     updateTimer();
 }
 
 function updateTimer() {
-    if (!window.issuePageData || !window.issuePageData[0] || !window.issuePageData[0].AcceptWork) {
-        console.error('No AcceptWork timestamp available');
+    if (!window.startTime || !window.estimatedMinutes) {
+        console.error('Missing start time or estimated minutes');
         return;
     }
 
-    const acceptWorkStr = window.issuePageData[0].AcceptWork;
-    const estimatedMinutes = parseInt(window.issuePageData[0].EstIT) || 0;
-    const acceptTime = new Date(acceptWorkStr.replace(' ', 'T')); // Convert to ISO format
-
-    const endTime = new Date(acceptTime.getTime() + estimatedMinutes * 60000); // Estimated end time
+    const endTime = new Date(window.startTime.getTime() + window.estimatedMinutes * 60000);
     const now = new Date();
-    const diffMs = endTime - now; // Remaining time in ms (can be negative)
+    const diffMs = endTime - now;
 
     const isOvertime = diffMs < 0;
     const absMs = Math.abs(diffMs);
@@ -656,16 +676,12 @@ function updateTimer() {
                       `${minutes.toString().padStart(2, '0')}:` +
                       `${seconds.toString().padStart(2, '0')}`;
 
-    // Update remaining time display
     const remainingTimeElement = document.getElementById('remaining-time');
     if (remainingTimeElement) {
         remainingTimeElement.textContent = formatted;
-    } else {
-        console.error('remaining-time element not found');
     }
 
-    // Calculate elapsed time
-    const elapsedMs = now - acceptTime;
+    const elapsedMs = now - window.startTime;
     const elapsedMinutes = Math.floor(elapsedMs / 60000);
     const elapsedSeconds = Math.floor((elapsedMs % 60000) / 1000);
     const elapsedTimeElement = document.getElementById('elapsed-time');
@@ -673,30 +689,25 @@ function updateTimer() {
         elapsedTimeElement.textContent = `${elapsedMinutes}:${elapsedSeconds.toString().padStart(2, '0')}`;
     }
 
-    // Update progress bar
-    const progressPercent = Math.min(100, (elapsedMinutes / estimatedMinutes) * 100);
+    const progressPercent = Math.min(100, (elapsedMinutes / window.estimatedMinutes) * 100);
     const progressBar = document.getElementById('progress-bar');
     if (progressBar) {
         progressBar.style.width = progressPercent + '%';
     }
 
-    // Update status
     const statusElement = document.getElementById('work-status');
     if (statusElement && progressBar) {
-        if (elapsedMinutes < estimatedMinutes * 0.8) {
-            // On time
+        if (elapsedMinutes < window.estimatedMinutes * 0.8) {
             statusElement.textContent = 'ON TIME';
             statusElement.style.backgroundColor = '#28a745';
             statusElement.style.color = 'white';
             progressBar.style.backgroundColor = '#28a745';
-        } else if (elapsedMinutes < estimatedMinutes) {
-            // Near deadline
+        } else if (elapsedMinutes < window.estimatedMinutes) {
             statusElement.textContent = 'PAUSE';
             statusElement.style.backgroundColor = '#ffc107';
             statusElement.style.color = 'black';
             progressBar.style.backgroundColor = '#ffc107';
         } else {
-            // Overtime
             statusElement.textContent = 'OVER TIME';
             statusElement.style.backgroundColor = '#dc3545';
             statusElement.style.color = 'white';

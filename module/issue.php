@@ -142,6 +142,61 @@ class Issue extends Encription
 		]);
 	}	
 
+	public function getProses($idIssue = "") {
+		$id_Issue = isset($_POST['id_Issue']) ? $_POST['id_Issue'] : $idIssue;
+	
+		$query = "
+			SELECT 
+				Ditangani,
+				TanggalSelesai,
+				CASE
+					WHEN (Ditangani IS NULL OR LTRIM(RTRIM(Ditangani)) = '') AND (TanggalSelesai IS NULL) THEN 1
+					WHEN (Ditangani IS NOT NULL AND LTRIM(RTRIM(Ditangani)) != '') AND (TanggalSelesai IS NULL) THEN 2
+					WHEN (Ditangani IS NOT NULL AND LTRIM(RTRIM(Ditangani)) != '') AND (TanggalSelesai IS NOT NULL) THEN 3
+					ELSE 0
+				END AS StatusProses
+			FROM mIssue 
+			WHERE No = '$id_Issue'
+		";
+	
+		$result = $this->db->execute($query);
+	
+		if ($result && isset($result[0])) {
+			return json_encode([
+				'status' => (int)$result[0]['StatusProses']
+			]);
+		} else {
+			return json_encode([
+				'status' => 0,
+				'message' => 'Data tidak ditemukan atau query error',
+				'query' => $query
+			]);
+		}
+	}
+
+	public function getTimerInfo($idIssue = "") {
+		$id_Issue = isset($_POST['id_Issue']) ? $_POST['id_Issue'] : $idIssue;
+		$query = "
+			SELECT AcceptWork, EstIT
+			FROM mIssue 
+			WHERE No = '$id_Issue'
+		";
+		$result = $this->db->execute($query);
+	
+		if ($result && count($result) > 0) {
+			return json_encode([
+				'status' => 'success',
+				'data' => $result[0]
+			]);
+		} else {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Data tidak ditemukan'
+			]);
+		}
+	}
+	
+	
 	public function getMyIssue($idUser = "000830") {
 		$idUser = !empty($_POST['idUser']) ? trim($_POST['idUser']) : $idUser;
 	
@@ -399,8 +454,6 @@ class Issue extends Encription
 	public function kerjakanIssue($No = "", $estimasiMenit = 0) {
 		// Ambil dan bersihkan nilai No
 		$No = isset($_POST['No']) ? $_POST['No'] : $No;
-	
-		// Menghilangkan karakter escape seperti \/ menggunakan json_decode
 		$No = json_decode('"' . $No . '"');
 		$No = trim($No);
 	
@@ -439,19 +492,14 @@ class Issue extends Encription
 				return json_encode(['status' => 'error', 'message' => 'Issue already taken by another user'], JSON_UNESCAPED_SLASHES);
 			}
 	
-			// Try different approaches for SQL Server compatibility
-			
-			// Method 1: Try with explicit field updates (most compatible)
-			$updateQuery1 = "UPDATE MIssue SET Ditangani = '$currentUser' WHERE No = '$No'";
+			$updateQuery1 = "UPDATE MIssue SET Ditangani = '$currentUser', EstIT = '$estimasiMenit' WHERE No = '$No'";
 			$result1 = $this->db->execute($updateQuery1);
 			
 			if ($result1 !== false) {
-				// Update AcceptWork separately
 				$updateQuery2 = "UPDATE MIssue SET AcceptWork = '$currentDateTime' WHERE No = '$No'";
 				$result2 = $this->db->execute($updateQuery2);
 				
 				if ($result2 !== false) {
-					// Update EstimasiMenit separately
 					$updateQuery3 = "UPDATE MIssue SET EstimasiMenit = $estimasiMenit WHERE No = '$No'";
 					$result3 = $this->db->execute($updateQuery3);
 					
