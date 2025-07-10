@@ -753,19 +753,16 @@ class Issue extends Encription
 
 	public function markChatAsRead() {
 		$noIssue = isset($_POST['NoIssue']) ? $_POST['NoIssue'] : '';
+		$noIssue = json_decode('"' . $noIssue . '"');
+		$noIssue = trim($noIssue);
 		$currentUser = isset($_SESSION[_session_app_id]['emp_no']) ? $_SESSION[_session_app_id]['emp_no'] : '';
 		
-		if (empty($noIssue)) {
-			return json_encode([
-				'status' => 'error', 
-				'message' => 'NoIssue tidak dikirim'
-			]);
-		}
-		
 		try {
-			// Mark all chat messages as read for this issue except messages from current user
-			$query = "UPDATE MComCli SET isRead = 1 WHERE NoIssue = ? AND Dari != ? AND isRead = 0";
-			$result = $this->db->execute($query, [$noIssue, $currentUser]);
+			$query = "UPDATE MComCli SET isRead = 1 
+					WHERE NoIssue = $noIssue
+					AND Dari != $currentUser 
+					AND isRead = 0";
+			$result = $this->db->execute($query);
 			
 			return json_encode([
 				'status' => 'success',
@@ -780,7 +777,7 @@ class Issue extends Encription
 	}
 	
 	public function createHD($No = "", $prioritas = "", $Tanggal = "", $dari = "", $tujuan = "", $kategori = "", $Jenis = "", $Aplikasi = "", $issue = "", $accPATA = "", $AcceptWork = "", $Rating = 0) {
-		$No = isset($_POST['No']) ? trim(strval($_POST['No'])) : trim(strval($No));
+		$No = isset($_POST['No']) ? trim($_POST['No']) : trim($No);
 		$prioritas = isset($_POST['prioritas']) ? trim(strval($_POST['prioritas'])) : trim(strval($prioritas));
 		$Tanggal = isset($_POST['Tanggal']) ? trim(strval($_POST['Tanggal'])) : trim(strval($Tanggal));
 		$dari = isset($_POST['dari']) ? trim(strval($_POST['dari'])) : trim(strval($dari));
@@ -791,7 +788,6 @@ class Issue extends Encription
 		$issue = isset($_POST['issue']) ? trim(strval($_POST['issue'])) : trim(strval($issue));
 		$accPATA = isset($_POST['accPATA']) ? trim(strval($_POST['accPATA'])) : trim(strval($accPATA));
 		$TanggalKonfirmasi = isset($_POST['TanggalKonfirmasi']) ? trim(strval($_POST['TanggalKonfirmasi'])) : trim(strval($AcceptWork));
-		$Rating = isset($_POST['Rating']) ? intval($_POST['Rating']) : intval($Rating);
 		// dd([$_POST,$_FILES['file']]);
 
 		try {
@@ -807,7 +803,10 @@ class Issue extends Encription
 					"Aplikasi" => $Aplikasi,
 					"issue" => $issue,
 					"accPATA" => $accPATA,
-					"Rating" => $Rating,
+					"StNotifPATA" => 0,
+					"StNotifIT" => 0,
+					"StNotifStf" => 0,
+					"Rating" => 0,
 					"autoppilot" => 1,
 					"TanggalKonfirmasi" => $TanggalKonfirmasi,
 					"Konfirmasi" => 1
@@ -829,12 +828,33 @@ class Issue extends Encription
 					'st_gmbr' => $st_gmbr
 				]);
 			} else {
-				return json_encode(['status' => 'error', 'message' => 'Failed to insert pengajuan']);
+				$insertData = [
+					"No" => $No,
+					"prioritas" => $prioritas,
+					"Tanggal" => $Tanggal,
+					"dari" => $dari,
+					"tujuan" => $tujuan,
+					"kategori" => $kategori,
+					"Jenis" => $Jenis,
+					"Aplikasi" => $Aplikasi,
+					"issue" => $issue,
+					"accPATA" => $accPATA,
+					"Rating" => $Rating,
+					"autoppilot" => 1,
+					"TanggalKonfirmasi" => $TanggalKonfirmasi,
+					"Konfirmasi" => 1
+				];
+				return json_encode([
+					'status' => 'error',
+					'message' => 'Failed to insert Helpdesk',
+					'data_attempted' => $insertData
+				]);
 			}
 		} catch (Exception $e) {
 			return json_encode(['status' => 'error', 'message' => 'Error: ' . $e->getMessage()]);
 		}
 	}
+
 	public function createPengajuan() {
 		$cabang = isset($_POST['cabang']) ? trim(strval($_POST['cabang'])) : 'P';
 		$No = isset($_POST['No']) && $_POST['No'] !== '' ? trim(strval($_POST['No'])) : $this->generateNoPJ($cabang);
