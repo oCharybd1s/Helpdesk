@@ -556,8 +556,9 @@ class Issue extends Encription
 	
 	
 	public function selesaikanIssue($No = "", $solusi = "", $catatan = "") {
-		$No = isset($_POST['No']) ? trim(strval($_POST['No'])) : trim(strval($No));
-		$No = stripslashes($No); // Remove escaped slashes
+		$No = isset($_POST['No']) ? $_POST['No'] : $No;
+		$No = json_decode('"' . $No . '"');
+		$No = trim($No);
 		$solusi = isset($_POST['solusi']) ? trim(strval($_POST['solusi'])) : trim(strval($solusi));
 		$catatan = isset($_POST['catatan']) ? trim(strval($_POST['catatan'])) : trim(strval($catatan));
 		

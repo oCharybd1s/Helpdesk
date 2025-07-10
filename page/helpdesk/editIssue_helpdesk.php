@@ -167,14 +167,6 @@
             </div>
             <div class="row" style="margin-left: 15px; margin-bottom: 4px; display: flex; justify-content: space-between;">
                 <div class="mid-6" style="font-size:16px; flex: 1; padding-right: 10px;">
-                <div class="form-floating form-floating-outline mb-4">
-                    <textarea
-                        class="form-control h-px-100"
-                        id="catatan-area"
-                        style="height:200px !important;"
-                    ></textarea>
-                    <label for="exampleFormControlTextarea1" style="margin-bottom: 10px;"><b>Solusi - Catatan</b></label>
-                </div>
                 <div style="display: flex; flex-direction: column; align-items: flex-start;">
                     <label style="color: #00a652;"><b>Upload Gambar:</b></label>
                     <div class="input-group">
@@ -461,24 +453,52 @@ function initializeWorkflow() {
     }
     
     // Check workflow state based on database fields
-    if (!window.issueWorkflowData.Ditangani && !window.issueWorkflowData.TanggalSelesai) {
-        // Phase 1: Not started
-        console.log('Phase 1: Not started');
+    // Phase 1: Not started (Ditangani = null, TanggalSelesai = null)
+    if ((!window.issueWorkflowData.Ditangani || window.issueWorkflowData.Ditangani === null) && 
+        (!window.issueWorkflowData.TanggalSelesai || window.issueWorkflowData.TanggalSelesai === null)) {
+        console.log('Phase 1: Not started - Showing estimation form');
         showPhase('estimation');
-    } else if (window.issueWorkflowData.Ditangani && !window.issueWorkflowData.TanggalSelesai) {
-        // Phase 2: Working
-        console.log('Phase 2: Working');
+        
+    // Phase 2: In Progress (Ditangani != null, TanggalSelesai = null)  
+    } else if (window.issueWorkflowData.Ditangani && window.issueWorkflowData.Ditangani !== null && 
+               (!window.issueWorkflowData.TanggalSelesai || window.issueWorkflowData.TanggalSelesai === null)) {
+        console.log('Phase 2: In Progress - Showing working timer');
         showPhase('working');
+        
+        // Initialize timer if we have AcceptWork data
         if (window.issueWorkflowData.AcceptWork) {
-            window.startTime = new Date(window.issueWorkflowData.AcceptWork);
+            // Handle different datetime formats
+            let acceptWorkTime;
+            if (window.issueWorkflowData.AcceptWork.date) {
+                // If it's an object with date property
+                acceptWorkTime = window.issueWorkflowData.AcceptWork.date;
+            } else {
+                // If it's a direct string
+                acceptWorkTime = window.issueWorkflowData.AcceptWork;
+            }
+            
+            window.startTime = new Date(acceptWorkTime);
             window.estimatedMinutes = parseInt(window.issueWorkflowData.EstimasiMenit) || 0;
+            
+            console.log('Starting timer with:', {
+                startTime: window.startTime,
+                estimatedMinutes: window.estimatedMinutes
+            });
+            
             startWorkTimer();
+        } else {
+            console.warn('AcceptWork data not found for in-progress issue');
         }
-    } else if (window.issueWorkflowData.Ditangani && window.issueWorkflowData.TanggalSelesai) {
-        // Phase 3: Completed
-        console.log('Phase 3: Completed');
+        
+    // Phase 3: Finished (Ditangani != null, TanggalSelesai != null)
+    } else if (window.issueWorkflowData.Ditangani && window.issueWorkflowData.Ditangani !== null && 
+               window.issueWorkflowData.TanggalSelesai && window.issueWorkflowData.TanggalSelesai !== null) {
+        console.log('Phase 3: Finished - Showing completion details');
         showPhase('completed');
         displayCompletionDetails();
+    } else {
+        console.warn('Unknown workflow state, defaulting to estimation phase');
+        showPhase('estimation');
     }
 }
 
@@ -541,101 +561,142 @@ function kerjakanIssue() {
     kerjakanBtn.textContent = 'Memproses...';
     kerjakanBtn.disabled = true;
     
-    sendPost("Issue", {
+    // Using traditional callback approach instead of .then()
+    const response = sendPost("Issue", {
         type_submit: "kerjakanIssue",
         No: window.issueId,
         estimasiMenit: estimasiMenit
-    }).then(response => {
-        console.log('Response from kerjakanIssue:', response);
+    });
+    
+    console.log('Response from kerjakanIssue:', response);
+    
+    if (response && response.status === 'success') {
+        alert('✅ Berhasil mengambil pekerjaan!');
         
-        if (response.status === 'success') {
-            alert('✅ Berhasil mengambil pekerjaan!');
-            
-            // Update issue data
+        // Update issue data and handle different response formats
+        if (window.issueWorkflowData) {
             window.issueWorkflowData.Ditangani = response.data.Ditangani;
             window.issueWorkflowData.AcceptWork = response.data.AcceptWork;
             window.issueWorkflowData.EstimasiMenit = response.data.EstimasiMenit;
-            
-            // Switch to working phase
-            showPhase('working');
-            window.startTime = new Date(response.data.AcceptWork);
-            window.estimatedMinutes = estimasiMenit;
-            startWorkTimer();
-            
-        } else {
-            alert('❌ Gagal mengambil pekerjaan: ' + response.message);
         }
-    }).catch(error => {
-        console.error('Error:', error);
-        alert('❌ Terjadi kesalahan saat mengambil pekerjaan');
-    }).finally(() => {
-        kerjakanBtn.textContent = originalText;
-        kerjakanBtn.disabled = false;
-    });
+        
+        // Switch to working phase
+        showPhase('working');
+        window.startTime = new Date(response.data.AcceptWork);
+        window.estimatedMinutes = estimasiMenit;
+        startWorkTimer();
+        
+        console.log('Successfully switched to working phase with timer');
+        
+        // Auto-populate solution field with user name and timestamp
+        const solutionArea = document.getElementById('solusi-area');
+        if (solutionArea && !solutionArea.value.trim()) {
+            const currentTime = new Date().toLocaleString('id-ID');
+            const userName = "<?= $_SESSION[_session_app_id]['first_name'] ?>";
+            solutionArea.value = `Pekerjaan dimulai oleh ${userName} pada ${currentTime}\n\nSolusi:\n`;
+        }
+        
+    } else {
+        alert('❌ Gagal mengambil pekerjaan: ' + (response ? response.message : 'Unknown error'));
+    }
+    
+    // Restore button state
+    kerjakanBtn.textContent = originalText;
+    kerjakanBtn.disabled = false;
 }
 
 function startWorkTimer() {
-    console.log('Starting work timer with estimated minutes:', window.estimatedMinutes);
+    console.log('Starting work timer with estimated minutes:', window.issuePageData[0].EstIT);
+    
+    if (!window.issuePageData[0].EstIT || window.issuePageData[0].EstIT <= 0) {
+        console.error('Invalid estimated minutes:', window.issuePageData[0].EstIT);
+        return;
+    }
     
     const estimatedTimeElement = document.getElementById('estimated-time');
     if (estimatedTimeElement) {
-        estimatedTimeElement.textContent = window.estimatedMinutes;
+        estimatedTimeElement.textContent =window.issuePageData[0].EstIT;
+        console.log('Set estimated time to:', window.issuePageData[0].EstIT);
+    } else {
+        console.error('estimated-time element not found');
     }
     
-    // Clear any existing timer
     if (window.workTimer) {
         clearInterval(window.workTimer);
+        console.log('Cleared existing timer');
     }
     
-    window.workTimer = setInterval(updateTimer, 1000); // Update every second
-    updateTimer(); // Initial update
+    window.workTimer = setInterval(updateTimer, 1000); 
+    console.log('Started new timer with interval ID:', window.workTimer);
+    
+    updateTimer();
 }
 
 function updateTimer() {
-    if (!window.startTime) return;
-    
+    if (!window.issuePageData || !window.issuePageData[0] || !window.issuePageData[0].AcceptWork) {
+        console.error('No AcceptWork timestamp available');
+        return;
+    }
+
+    const acceptWorkStr = window.issuePageData[0].AcceptWork;
+    const estimatedMinutes = parseInt(window.issuePageData[0].EstIT) || 0;
+    const acceptTime = new Date(acceptWorkStr.replace(' ', 'T')); // Convert to ISO format
+
+    const endTime = new Date(acceptTime.getTime() + estimatedMinutes * 60000); // Estimated end time
     const now = new Date();
-    const elapsedMs = now - window.startTime;
+    const diffMs = endTime - now; // Remaining time in ms (can be negative)
+
+    const isOvertime = diffMs < 0;
+    const absMs = Math.abs(diffMs);
+    const hours = Math.floor(absMs / 3600000);
+    const minutes = Math.floor((absMs % 3600000) / 60000);
+    const seconds = Math.floor((absMs % 60000) / 1000);
+
+    const formatted = `${isOvertime ? '-' : ''}${hours.toString().padStart(2, '0')}:` +
+                      `${minutes.toString().padStart(2, '0')}:` +
+                      `${seconds.toString().padStart(2, '0')}`;
+
+    // Update remaining time display
+    const remainingTimeElement = document.getElementById('remaining-time');
+    if (remainingTimeElement) {
+        remainingTimeElement.textContent = formatted;
+    } else {
+        console.error('remaining-time element not found');
+    }
+
+    // Calculate elapsed time
+    const elapsedMs = now - acceptTime;
     const elapsedMinutes = Math.floor(elapsedMs / 60000);
     const elapsedSeconds = Math.floor((elapsedMs % 60000) / 1000);
-    
-    // Update elapsed time
     const elapsedTimeElement = document.getElementById('elapsed-time');
     if (elapsedTimeElement) {
         elapsedTimeElement.textContent = `${elapsedMinutes}:${elapsedSeconds.toString().padStart(2, '0')}`;
     }
-    
-    // Calculate remaining time
-    const remainingMinutes = Math.max(0, window.estimatedMinutes - elapsedMinutes);
-    const remainingTimeElement = document.getElementById('remaining-time');
-    if (remainingTimeElement) {
-        remainingTimeElement.textContent = remainingMinutes;
-    }
-    
+
     // Update progress bar
-    const progressPercent = Math.min(100, (elapsedMinutes / window.estimatedMinutes) * 100);
+    const progressPercent = Math.min(100, (elapsedMinutes / estimatedMinutes) * 100);
     const progressBar = document.getElementById('progress-bar');
     if (progressBar) {
         progressBar.style.width = progressPercent + '%';
     }
-    
-    // Update status and colors
+
+    // Update status
     const statusElement = document.getElementById('work-status');
     if (statusElement && progressBar) {
-        if (elapsedMinutes < window.estimatedMinutes * 0.8) {
-            // On time (less than 80% of estimated time)
+        if (elapsedMinutes < estimatedMinutes * 0.8) {
+            // On time
             statusElement.textContent = 'ON TIME';
             statusElement.style.backgroundColor = '#28a745';
             statusElement.style.color = 'white';
             progressBar.style.backgroundColor = '#28a745';
-        } else if (elapsedMinutes < window.estimatedMinutes) {
-            // Approaching deadline (80%-100% of estimated time)
+        } else if (elapsedMinutes < estimatedMinutes) {
+            // Near deadline
             statusElement.textContent = 'PAUSE';
             statusElement.style.backgroundColor = '#ffc107';
             statusElement.style.color = 'black';
             progressBar.style.backgroundColor = '#ffc107';
         } else {
-            // Over time (more than estimated time)
+            // Overtime
             statusElement.textContent = 'OVER TIME';
             statusElement.style.backgroundColor = '#dc3545';
             statusElement.style.color = 'white';
@@ -665,89 +726,148 @@ function selesaikanIssue() {
     finishBtn.textContent = '⏳ Menyelesaikan...';
     finishBtn.disabled = true;
     
-    sendPost("Issue", {
+    // Using traditional callback approach instead of .then()
+    const response = sendPost("Issue", {
         type_submit: "selesaikanIssue",
         No: window.issueId,
         solusi: solusi,
         catatan: catatan
-    }).then(response => {
-        console.log('Response from selesaikanIssue:', response);
+    });
+    
+    console.log('Response from selesaikanIssue:', response);
+    
+    if (response && response.status === 'success') {
+        alert('✅ Pekerjaan berhasil diselesaikan!');
         
-        if (response.status === 'success') {
-            alert('✅ Pekerjaan berhasil diselesaikan!');
-            
-            // Stop timer
-            if (window.workTimer) {
-                clearInterval(window.workTimer);
-                window.workTimer = null;
-            }
-            
-            // Update issue data
+        // Stop timer
+        if (window.workTimer) {
+            clearInterval(window.workTimer);
+            window.workTimer = null;
+            console.log('Work timer stopped');
+        }
+        
+        // Update issue data
+        if (window.issueWorkflowData) {
             window.issueWorkflowData.TanggalSelesai = response.data.TanggalSelesai;
             window.issueWorkflowData.Solusi = response.data.Solusi;
             window.issueWorkflowData.CatatanIT = response.data.CatatanIT;
             window.issueWorkflowData.AktualMenit = response.data.AktualMenit;
-            
-            // Switch to completed phase
-            showPhase('completed');
-            displayCompletionDetails();
-            
-        } else {
-            alert('❌ Gagal menyelesaikan pekerjaan: ' + response.message);
         }
-    }).catch(error => {
-        console.error('Error:', error);
-        alert('❌ Terjadi kesalahan saat menyelesaikan pekerjaan');
-    }).finally(() => {
-        finishBtn.textContent = originalText;
-        finishBtn.disabled = false;
-    });
+        
+        // Switch to completed phase
+        showPhase('completed');
+        displayCompletionDetails();
+        
+        console.log('Successfully completed issue and switched to completion phase');
+        
+    } else {
+        alert('❌ Gagal menyelesaikan pekerjaan: ' + (response ? response.message : 'Unknown error'));
+    }
+    
+    // Restore button state
+    finishBtn.textContent = originalText;
+    finishBtn.disabled = false;
 }
 
 function displayCompletionDetails() {
-    console.log('Displaying completion details');
+    console.log('Displaying completion details for finished issue');
     
-    if (!window.issueWorkflowData) return;
+    if (!window.issueWorkflowData) {
+        console.error('No issue data available for completion details');
+        return;
+    }
     
-    const startTimeObj = new Date(window.issueWorkflowData.AcceptWork);
-    const finishTimeObj = new Date(window.issueWorkflowData.TanggalSelesai);
+    // Handle different datetime formats for AcceptWork and TanggalSelesai
+    let startTimeObj, finishTimeObj;
+    
+    // Parse AcceptWork
+    if (window.issueWorkflowData.AcceptWork) {
+        if (window.issueWorkflowData.AcceptWork.date) {
+            startTimeObj = new Date(window.issueWorkflowData.AcceptWork.date);
+        } else {
+            startTimeObj = new Date(window.issueWorkflowData.AcceptWork);
+        }
+    }
+    
+    // Parse TanggalSelesai
+    if (window.issueWorkflowData.TanggalSelesai) {
+        if (window.issueWorkflowData.TanggalSelesai.date) {
+            finishTimeObj = new Date(window.issueWorkflowData.TanggalSelesai.date);
+        } else {
+            finishTimeObj = new Date(window.issueWorkflowData.TanggalSelesai);
+        }
+    }
+    
     const estimatedMin = parseInt(window.issueWorkflowData.EstimasiMenit) || 0;
     const actualMin = parseInt(window.issueWorkflowData.AktualMenit) || 0;
     
+    console.log('Completion data:', {
+        startTime: startTimeObj,
+        finishTime: finishTimeObj,
+        estimated: estimatedMin,
+        actual: actualMin
+    });
+    
     // Update display elements with null checks
     const startTimeDisplay = document.getElementById('start-time-display');
-    if (startTimeDisplay) {
+    if (startTimeDisplay && startTimeObj) {
         startTimeDisplay.textContent = formatDateTime(startTimeObj);
     }
     
     const finishTimeDisplay = document.getElementById('finish-time-display');
-    if (finishTimeDisplay) {
+    if (finishTimeDisplay && finishTimeObj) {
         finishTimeDisplay.textContent = formatDateTime(finishTimeObj);
     }
     
     const finalEstimatedTime = document.getElementById('final-estimated-time');
     if (finalEstimatedTime) {
-        finalEstimatedTime.textContent = estimatedMin;
+        finalEstimatedTime.textContent = estimatedMin || '-';
     }
     
     const actualTimeDisplay = document.getElementById('actual-time-display');
     if (actualTimeDisplay) {
-        actualTimeDisplay.textContent = actualMin;
+        actualTimeDisplay.textContent = actualMin || '-';
     }
     
     // Determine completion status
     let status, statusColor;
-    const difference = actualMin - estimatedMin;
-    
-    if (actualMin <= estimatedMin) {
-        status = '🎯 Tepat Waktu';
-        statusColor = '#28a745';
-    } else if (difference <= estimatedMin * 0.2) {
-        status = '⚠️ Sedikit Terlambat';
-        statusColor = '#ffc107';
+    if (actualMin > 0 && estimatedMin > 0) {
+        const difference = actualMin - estimatedMin;
+        
+        if (actualMin <= estimatedMin) {
+            status = '🎯 Tepat Waktu';
+            statusColor = '#28a745';
+        } else if (difference <= estimatedMin * 0.2) {
+            status = '⚠️ Sedikit Terlambat';
+            statusColor = '#ffc107';
+        } else {
+            status = '🚨 Terlambat';
+            statusColor = '#dc3545';
+        }
+        
+        // Time difference
+        const diffElement = document.getElementById('time-difference');
+        if (diffElement) {
+            if (difference > 0) {
+                diffElement.textContent = `+${difference} menit (terlambat)`;
+                diffElement.style.color = '#dc3545';
+            } else if (difference < 0) {
+                diffElement.textContent = `${Math.abs(difference)} menit (lebih cepat)`;
+                diffElement.style.color = '#28a745';
+            } else {
+                diffElement.textContent = 'Tepat sesuai estimasi';
+                diffElement.style.color = '#28a745';
+            }
+        }
     } else {
-        status = '🚨 Terlambat';
-        statusColor = '#dc3545';
+        status = '✅ Selesai';
+        statusColor = '#28a745';
+        
+        const diffElement = document.getElementById('time-difference');
+        if (diffElement) {
+            diffElement.textContent = 'Data waktu tidak tersedia';
+            diffElement.style.color = '#6c757d';
+        }
     }
     
     const statusElement = document.getElementById('completion-status');
@@ -757,30 +877,15 @@ function displayCompletionDetails() {
         statusElement.style.fontWeight = 'bold';
     }
     
-    // Time difference
-    const diffElement = document.getElementById('time-difference');
-    if (diffElement) {
-        if (difference > 0) {
-            diffElement.textContent = `+${difference} menit (terlambat)`;
-            diffElement.style.color = '#dc3545';
-        } else if (difference < 0) {
-            diffElement.textContent = `${Math.abs(difference)} menit (lebih cepat)`;
-            diffElement.style.color = '#28a745';
-        } else {
-            diffElement.textContent = 'Tepat sesuai estimasi';
-            diffElement.style.color = '#28a745';
-        }
-    }
-    
     // Solution and notes
     const finalSolusi = document.getElementById('final-solusi');
     if (finalSolusi) {
-        finalSolusi.textContent = window.issueWorkflowData.Solusi || '-';
+        finalSolusi.textContent = window.issueWorkflowData.Solusi || 'Tidak ada solusi yang dicatat';
     }
     
     const finalCatatan = document.getElementById('final-catatan');
     if (finalCatatan) {
-        finalCatatan.textContent = window.issueWorkflowData.CatatanIT || '-';
+        finalCatatan.textContent = window.issueWorkflowData.CatatanIT || 'Tidak ada catatan IT';
     }
 }
 
