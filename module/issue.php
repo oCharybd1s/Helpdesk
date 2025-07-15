@@ -174,6 +174,28 @@ class Issue extends Encription
 		}
 	}
 
+	public function getComplete($idIssue = "") {
+		$id_Issue = isset($_POST['id_Issue']) ? $_POST['id_Issue'] : $idIssue;
+	
+		$query = "
+			SELECT *
+			FROM mIssue 
+			WHERE No = '$id_Issue'
+		";
+	
+		$result = $this->db->execute($query);
+	
+		if ($result) {
+			return json_encode([
+				'data' => $result
+			]);
+		} else {
+			return json_encode([
+				'data' => $query
+			]);
+		}
+	}
+
 	public function getTimerInfo($idIssue = "") {
 		$id_Issue = isset($_POST['id_Issue']) ? $_POST['id_Issue'] : $idIssue;
 		$query = "
@@ -196,8 +218,7 @@ class Issue extends Encription
 		}
 	}
 	
-	
-	public function getMyIssue($idUser = "000830") {
+	public function getMyIssue($idUser = "") {
 		$idUser = !empty($_POST['idUser']) ? trim($_POST['idUser']) : $idUser;
 	
 		$query = "
@@ -270,7 +291,7 @@ class Issue extends Encription
 		$emp_no = $_SESSION[_session_app_id]['emp_no'];
 
 		// Hitung total data
-		$countResult = $this->db->execute("SELECT COUNT(*) AS total FROM mPengajuan WHERE dari = '$emp_no'");
+		$countResult = $this->db->execute("SELECT COUNT(*) AS total FROM mPengajuan WHERE dari = '$emp_no' OR kepada  = '$emp_no' OR up  = '$emp_no'");
 		$totalCount = $countResult[0]['total'];
 
 		// Ambil data + status
@@ -415,6 +436,22 @@ class Issue extends Encription
 		}
 	}	
 
+	public function getIssueImages($No) {
+		$No = trim($No);
+		$NoSafe = str_replace("'", "''", $No);
+	
+		$result = $this->db->execute("SELECT NamaFile FROM GBIssue WHERE No = '$NoSafe' ORDER BY Seq ASC");
+	
+		if ($result) {
+			return json_encode([
+				'status' => 'success',
+				'data' => $result
+			]);
+		} else {
+			return json_encode(['status' => 'error', 'message' => 'Failed to fetch images']);
+		}
+	}	
+
 	public function getEditAll(){
 		$result = $this->db->execute("SELECT * FROM MIssue WHERE No = 'id_Issue';");
 		// $result = $this->db->getAll('mIssue');
@@ -450,6 +487,35 @@ class Issue extends Encription
 			return json_encode(['status' => 'error', 'message' => 'Error: ' . $e->getMessage()]);
 		}
 	}	
+
+	public function checkKerjaan($ditangani = ''){
+		$ditangani = isset($_POST['ditangani']) ? trim(strval($_POST['ditangani'])) : trim(strval($ditangani));
+		
+		if (!$ditangani) {
+			echo json_encode(['status' => 'error', 'message' => 'Emp No tidak dikirim']);
+			return;
+		}
+	
+		$result = $this->db->execute("SELECT TOP 1 No
+				FROM MIssue 
+				WHERE Ditangani = $ditangani
+				AND AcceptWork IS NOT NULL 
+				AND TanggalSelesai IS NULL 
+				ORDER BY Tanggal DESC");
+	
+		if ($result) {
+			echo json_encode([
+				'status' => 'success',
+				'message' => 'Issue successfully taken',
+				'data' => $result, 
+			], JSON_UNESCAPED_SLASHES);
+		} else {
+			echo json_encode([
+				'status' => 'error',
+				'message' => 'Tidak ada issue aktif'
+			]);
+		}
+	}
 	
 	public function kerjakanIssue($No = "", $estimasiMenit = 0) {
 		// Ambil dan bersihkan nilai No
@@ -602,49 +668,53 @@ class Issue extends Encription
 		}
 	}
 	
-	
 	public function selesaikanIssue($No = "", $solusi = "", $catatan = "") {
-		$No = isset($_POST['No']) ? $_POST['No'] : $No;
-		$No = json_decode('"' . $No . '"');
-		$No = trim($No);
-		$solusi = isset($_POST['solusi']) ? trim(strval($_POST['solusi'])) : trim(strval($solusi));
-		$catatan = isset($_POST['catatan']) ? trim(strval($_POST['catatan'])) : trim(strval($catatan));
-		
+		$No = isset($_POST['No']) ? trim($_POST['No']) : trim($No);
+		$solusi = isset($_POST['solusi']) ? trim($_POST['solusi']) : trim($solusi);
+		$catatan = isset($_POST['catatan']) ? trim($_POST['catatan']) : trim($catatan);
+	
 		$currentUser = $_SESSION[_session_app_id]['emp_no'] ?? '';
-		
-		$currentDateTime = date('Y-m-d H:i:s') . '.' . substr(microtime(false), 2, 3);
-		
+		$currentDateTime = date('Y-m-d H:i:s');
+	
 		try {
-			// Check if issue exists and is being worked on by current user
-			$checkQuery = "SELECT Ditangani, AcceptWork, EstimasiMenit, TanggalSelesai FROM MIssue WHERE No = '$No'";
+			// Escape karakter untuk keamanan SQL
+			$NoSafe = str_replace("'", "''", $No);
+			$solusiSafe = str_replace("'", "''", $solusi);
+			$catatanSafe = str_replace("'", "''", $catatan);
+	
+			// 1. Cek apakah issue ada
+			$checkQuery = "SELECT Ditangani, EstIT, TanggalSelesai FROM MIssue WHERE No = '$NoSafe'";
 			$existingIssue = $this->db->execute($checkQuery);
-			
+	
 			if (empty($existingIssue)) {
 				return json_encode(['status' => 'error', 'message' => 'Issue not found']);
 			}
-			
-			if ($existingIssue[0]['Ditangani'] !== $currentUser) {
+	
+			$row = $existingIssue[0];
+	
+			// 2. Validasi user
+			if (trim($row['Ditangani']) !== $currentUser) {
 				return json_encode(['status' => 'error', 'message' => 'You are not assigned to this issue']);
 			}
-			
-			if (!empty($existingIssue[0]['TanggalSelesai'])) {
+	
+			// 3. Cek apakah sudah selesai
+			if (!empty($row['TanggalSelesai'])) {
 				return json_encode(['status' => 'error', 'message' => 'Issue already completed']);
 			}
+			$gabunganSolusi = "Solusi: $solusi\nCatatan IT: $catatan";
+			$gabunganSolusiSafe = str_replace("'", "''", $gabunganSolusi);
+
+			// 4. Update data
+			$updateQuery = "
+			UPDATE MIssue 
+			SET TanggalSelesai = '$currentDateTime',
+				Solusi = '$gabunganSolusiSafe'
+			WHERE No = '$NoSafe'";
+
 			
-			// Calculate actual work time
-			$acceptTime = new DateTime($existingIssue[0]['AcceptWork']);
-			$finishTime = new DateTime($currentDateTime);
-			$actualMinutes = round(($finishTime->getTimestamp() - $acceptTime->getTimestamp()) / 60);
-			
-			// Escape strings for SQL safety
-			$escapedSolusi = str_replace("'", "''", $solusi);
-			$escapedCatatan = str_replace("'", "''", $catatan);
-			
-			// Update the issue with full SQL query
-			$updateQuery = "UPDATE MIssue SET TanggalSelesai = '$currentDateTime', Solusi = '$escapedSolusi', CatatanIT = '$escapedCatatan', AktualMenit = $actualMinutes WHERE No = '$No'";
-			
+				
 			$result = $this->db->execute($updateQuery);
-			
+	
 			if ($result !== false) {
 				return json_encode([
 					'status' => 'success',
@@ -652,20 +722,18 @@ class Issue extends Encription
 					'data' => [
 						'No' => $No,
 						'TanggalSelesai' => $currentDateTime,
-						'EstimasiMenit' => $existingIssue[0]['EstimasiMenit'],
-						'AktualMenit' => $actualMinutes,
-						'Solusi' => $solusi,
-						'CatatanIT' => $catatan
+						'Solusi' => $gabunganSolusiSafe
 					]
 				]);
 			} else {
 				return json_encode(['status' => 'error', 'message' => 'Failed to complete issue']);
 			}
-			
+	
 		} catch (Exception $e) {
-			return json_encode(['status' => 'error', 'message' => 'Error: ' . $e->getMessage()]);
+			return json_encode(['status' => 'error', 'message' => 'Exception: ' . $e->getMessage()]);
 		}
 	}
+	
 
 	public function issueGenID(){
 		$year = date('Y');
@@ -676,8 +744,9 @@ class Issue extends Encription
 		$newNumber = $count + 1;
 		$formattedNumber = str_pad($newNumber, 6, '0', STR_PAD_LEFT);
 		$newID = "IT/$shortYear/$formattedNumber";
-		return json_encode($newID);
-	}	
+		
+		return json_encode($newID, JSON_UNESCAPED_SLASHES);
+	}
 	
 	public function getAtP(){
 		$query = "SELECT TOP 1 MPATA FROM MAtP;";
@@ -690,7 +759,8 @@ class Issue extends Encription
 		return json_encode(intval($result[0]['MPATA'])); 
 	}
 
-	public function getNotif() {
+	public function getNotif($id='') {
+		$id = isset($_POST['id']) ? $_POST['id'] : '';
 		$query = "
 			SELECT mc1.*
 				, (
@@ -705,6 +775,7 @@ class Issue extends Encription
 				WHERE isRead = 0
 				GROUP BY NoIssue
 			) latest ON mc1.NoIssue = latest.NoIssue AND mc1.Waktu = latest.MaxWaktu
+			WHERE idUser = $id
 			ORDER BY mc1.Waktu DESC
 		";
 	
@@ -855,12 +926,32 @@ class Issue extends Encription
 					"StNotifIT" => 0,
 					"StNotifStf" => 0,
 					"Rating" => 0,
-					"autoppilot" => 1,
+					"autopilot" => 1,
 					"TanggalKonfirmasi" => $TanggalKonfirmasi,
 					"Konfirmasi" => 1
 				]);
 			}
-			
+			elseif($accPATA == 0){
+				$result = $this->db->insert("MIssue", [
+					"No" => $No,
+					"prioritas" => $prioritas,
+					"Tanggal" => $Tanggal,
+					"dari" => $dari,
+					"tujuan" => $tujuan,
+					"kategori" => $kategori,
+					"Jenis" => $Jenis,
+					"Aplikasi" => $Aplikasi,
+					"issue" => $issue,
+					"accPATA" => $accPATA,
+					"StNotifPATA" => 0,
+					"StNotifIT" => 0,
+					"StNotifStf" => 0,
+					"Rating" => 0,
+					"autopilot" => 0,
+					"TanggalKonfirmasi" => NULL,
+					"Konfirmasi" => 0
+				]);
+			}
 			$st_gmbr = [];
 			if (!empty($_FILES)) {
 				foreach ($_FILES['file']['tmp_name'] as $key => $tmp) {
@@ -890,7 +981,8 @@ class Issue extends Encription
 					"Rating" => $Rating,
 					"autoppilot" => 1,
 					"TanggalKonfirmasi" => $TanggalKonfirmasi,
-					"Konfirmasi" => 1
+					"Konfirmasi" => 1,
+					'st_gmbr' => $st_gmbr
 				];
 				return json_encode([
 					'status' => 'error',

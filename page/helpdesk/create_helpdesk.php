@@ -1,1194 +1,826 @@
-<?php
-/**
- * $$_POST['type_submit']
- */
-class Issue extends Encription
-{
-	public $type_submit='';
-	public $db='';
-	function __construct($db='', $request=[])
-	{
-		extract($request);
-		unset( $_POST['submit'] );
-		$this->db=$db;
-		$this->type_submit=$type_submit;
-		if( isset($type_submit) && $type_submit!='' ){
-			echo $this->$type_submit();
-		}
-	}
+<div class="col-md-12">
+    <div class="card mb-4" style="border: 2px solid #00a652;">
+        <h5 class="card-header" style="font-size:32px; color: #00a652;"><b>Buat Permintaan Helpdesk</b></h5>
+        <form id="helpdeskForm" onsubmit="return validateForm()">
+            <div id="issue" style="font-size:16px;">
+                Tanggal Issue : <b><span name="timestamp" id="timestamp"></span></b>
+            </div>
 
-	public function getIssue($page = 1, $tujuan = "", $kategori = "", $jenis = 0, $work = "", $status = 0, $bulan = "", $tahun = "", $program = 0, $rowsPerPage = 20) {
-		$page = isset($_POST['page']) ? $_POST['page'] : $page;
-		$tujuan = isset($_POST['tujuan']) && $_POST['tujuan'] !== "" ? $_POST['tujuan'] : null;
-		$kategori = isset($_POST['kategori']) && $_POST['kategori'] !== "" ? $_POST['kategori'] : null;
-		$jenis = isset($_POST['jenis']) && $_POST['jenis'] !== "" ? $_POST['jenis'] : null;
-		$work = isset($_POST['work']) ? $_POST['work'] : $work;
-		$status = isset($_POST['status']) ? $_POST['status'] : $status;
-		$bulanNama = isset($_POST['bulan']) ? $_POST['bulan'] : null;
-		$bulan = null;
-		if ($bulanNama) {
-			$bulanArray = [
-				"Januari" => 1, "Februari" => 2, "Maret" => 3, "April" => 4,
-				"Mei" => 5, "Juni" => 6, "Juli" => 7, "Agustus" => 8,
-				"September" => 9, "Oktober" => 10, "November" => 11, "Desember" => 12
-			];
+            <div class="card-body demo-vertical-spacing demo-only-element">
+                <!-- Dari -->
+                <div class="form-floating form-floating-outline">
+                    <select name="takePegawai" id="takePegawai" class="select2 form-select form-select-lg" required data-allow-clear="true" style="border: 2px solid #00a652;">
+                        <!-- Options will be populated here -->
+                    </select>
+                    <label style="color: #00a652;" for="select2Basic">Dari</label>
+                </div>
 
-			$bulan = isset($bulanArray[$bulanNama]) ? $bulanArray[$bulanNama] : null;
-		}
-		$tahun = isset($_POST['tahun']) && $_POST['tahun'] !== "" ? $_POST['tahun'] : null;
-		$program = isset($_POST['program']) && $_POST['program'] !== "" ? $_POST['program'] : null;
-		$offset = ($page - 1) * $rowsPerPage;
-	
-		$query = "SELECT * FROM mIssue WHERE 1=1";
-		$params = [];
-	
-		if ($tujuan) {
-			$query .= " AND tujuan = $tujuan";
-		}
-		if ($kategori) {
-			$query .= " AND kategori = $kategori";
-		}
+                <!-- Tujuan Helpdesk -->
+                <div class="form-floating form-floating-outline">
+                    <select name="floatingSelect1" class="form-select" id="floatingSelect1" required aria-label="Floating label select example" onchange="enableNext('floatingSelect2')" style="border: 1px solid #d8d8dd;">
+                        <option value="" selected disabled>Pilih Tujuan Helpdesk</option>
+                        <option value="1">Komplain</option>
+                        <option value="2">Request</option>
+                    </select>
+                    <label for="floatingSelect1" 
+                    style="color: #00a652;"><b>Tujuan Helpdesk</b></label>
+                </div>
 
-		if ($jenis) {
-			$query .= " AND jenis = $jenis";
-		}
+                <!-- Kategori -->
+                <div class="form-floating form-floating-outline">
+                    <select name="floatingSelect2" class="form-select" id="floatingSelect2" required aria-label="Floating label select example" disabled onchange="handleChange()" onclick="handleCombination();" style="border: 1px solid #d8d8dd;">
+                        <option value="" selected disabled>Pilih Kategori Issue</option>
+                        <option value="1">Software</option>
+                        <option value="2">Hardware</option>
+                    </select>
+                    <label for="floatingSelect2" 
+                    style="color: #00a652;"><b>Kategori</b></label>
+                </div>
 
-		if ($work) {
-			$query .= " AND ditangani = $work";
-		}
+                <!-- Jenis Laporan -->
+                <div class="form-floating form-floating-outline">
+                    <select name="floatingSelect3" class="form-select" id="floatingSelect3" required aria-label="Floating label select example" disabled onchange="enableNext('floatingSelect4')" style="border: 1px solid #d8d8dd;">
+                        <option value="" selected disabled>Pilih Jenis Laporan</option>
+                    </select>
+                    <label for="floatingSelect3" 
+                    style="color: #00a652;"><b>Jenis Laporan</b></label>
+                </div>
 
-		if ($status) {
-			if ($status == 1) {
-				$query .= " AND ditangani IS NULL AND TanggalSelesai IS NULL";
-			} elseif ($status == 2) {
-				$query .= " AND ditangani IS NOT NULL AND TanggalSelesai IS NULL";
-			} elseif ($status == 3) {
-				$query .= " AND ditangani IS NOT NULL AND TanggalSelesai IS NOT NULL";
-			}
-		}
-		
-		if ($bulan) {
-			$query .= " AND MONTH(Tanggal) = $bulan";
-		}
-		
-		if ($tahun) {
-			$query .= " AND YEAR(Tanggal) = $tahun";
-		}
+                <!-- Program yang Dimaksud -->
+                <div class="form-floating form-floating-outline" id="programSelectDiv" style="display: none;">
+                    <select name="floatingSelect4" class="form-select" id="floatingSelect4" style="border: 2px solid #d8d8dd;" aria-label="Floating label select example" disabled>
+                        <option value="" selected disabled>Pilih Program yang Dimaksud</option>
+                    </select>
+                    <label for="floatingSelect4" 
+                    style="color: #00a652;"><b>Program yang diMaksud</b></label>
+                </div>
 
-		if ($program){
-			$query .= " AND Aplikasi = $program";
-		}
-	
-		$query .= " ORDER BY No DESC OFFSET $offset ROWS FETCH NEXT $rowsPerPage ROWS ONLY";
-	
-		$result = $this->db->execute($query);
-	
-		$countQuery = "SELECT COUNT(*) AS total FROM mIssue WHERE 1=1";
-		if ($tujuan) $countQuery .= " AND tujuan = $tujuan";
-		if ($kategori) $countQuery .= " AND kategori = $kategori";
-		if ($jenis) $countQuery .= " AND jenis = $jenis";
-		if ($work) $countQuery .= " AND ditangani = $work";
-		if ($status) {
-			if ($status == 1) {
-				$countQuery .= " AND ditangani IS NULL AND TanggalSelesai IS NULL";
-			} elseif ($status == 2) {
-				$countQuery .= " AND ditangani IS NOT NULL AND TanggalSelesai IS NULL";
-			} elseif ($status == 3) {
-				$countQuery .= " AND ditangani IS NOT NULL AND TanggalSelesai IS NOT NULL";
-			}
-		}
-		if ($bulan) $countQuery .= " AND MONTH(Tanggal) = $bulan";
-		if ($tahun) $countQuery .= " AND YEAR(Tanggal) = $tahun";
-		if ($program) $countQuery .= " AND Aplikasi = $program";
-	 
-		$countResult = $this->db->execute($countQuery, $params);
-		$totalCount = $countResult ? $countResult[0]['total'] : 0;
-	
-		echo json_encode([
-			'data' => $result ?: $query,
-			'total_count' => $totalCount
-		]);
-	}
-	
-	public function getEdit($id_Issue = ""){
-		$id_Issue = isset($_POST['id_Issue']) ? $_POST['id_Issue'] : $id_Issue;
-		$query = "SELECT * FROM mIssue WHERE No = '$id_Issue'";
-		$result = $this->db->execute($query); 
+                <!-- Deskripsi -->
+                <div class="input-group input-group-merge">
+                    <div name="floatingSelect5" class="form-floating form-floating-outline">
+                        <textarea class="form-control" required aria-label="With textarea" placeholder="Masukkan Deskripsi" style="border: 1px solid #d8d8dd; height: auto; min-height: 200px;" rows="5"></textarea>
+                        <label 
+                        style="color: #00a652;"><b>Deskripsi</b></label>
+                    </div>
+                </div>
 
-		if (!$result) {
-			return json_encode(["error" => "Data not found"]);
-		}
-	
-		return json_encode($result);
-	}
+                <!-- Upload Gambar -->
+                <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                    <label style="color: #00a652;"><b>Upload Gambar:</b></label>
+                    <div class="input-group">
+                    <input name="file[]" type="file" class="form-control" id="inputGroupFile03" accept="image/*" multiple 
+                        onchange="handleFiles(this);" 
+                        style="background-color:#eff0e9;margin-bottom:10px; place-items:center; border: 1px solid #d8d8dd;">
+                    </div>
+                    
+                    <div id="dropzone">
+                        <span id="dropzone-text">Drag and drop images here</span>
+                    </div>
+                </div>
 
-	public function getOpenIssue($page = 1, $rowsPerPage = 20){
-		$page = isset($_POST['page'])? $_POST['page'] : $page; 
-		$offset = ($page - 1) * $rowsPerPage;
-		$countResult = $this->db->execute("SELECT COUNT(*) AS total FROM mIssue WHERE ditangani IS NULL");
-		$totalCount = $countResult[0]['total'];
-		$result = $this->db->execute("
-			SELECT * 
-			FROM mIssue 
-			WHERE Ditangani IS NULL 
-			ORDER BY Tanggal DESC
-			OFFSET $offset ROWS
-			FETCH NEXT $rowsPerPage ROWS ONLY
-		");
-	
-		return json_encode([
-			'data' => $result,
-			'total_count' => $totalCount  
-		]);
-	}	
+                <div id="error-message" style="color: red; display: none;">
+                    <p>Hanya menerima gambar. Ekstensi yang diperbolehkan: .jpg, .jpeg, .png, .gif</p>
+                </div>
 
-	public function getMyIssue($idUser = "000830") {
-		$idUser = !empty($_POST['idUser']) ? trim($_POST['idUser']) : $idUser;
-	
-		$query = "
-			SELECT No 
-			FROM MIssue 
-			WHERE (Ditangani = '$idUser' OR Dari = '$idUser') 
-			AND TanggalSelesai IS NULL
-			ORDER BY Tanggal DESC
-		";
-	
-		try {
-			$issues = $this->db->execute($query);
-			$finalData = [];
-	
-			foreach ($issues as $issue) {
-				$id_Issue = $issue['No'];
-	
-				// Ambil data chat dari MComCli untuk setiap issue
-				$queryChat = "SELECT * FROM MComCli WHERE id_Issue = '$id_Issue'";
-				$chats = $this->db->execute($queryChat);
-	
-				foreach ($chats as $chat) {
-					if ($chat['isRead'] == 0 && $chat['Dari'] != $_SESSION[_session_app_id]['emp_no']) {
-						$finalData[] = [
-							'NoIssue' => $id_Issue,
-							'Dari' => $chat['Dari'],
-							'Isi' => $chat['Isi']
-						];
-					}
-				}
-			}
-	
-			return json_encode([
-				'status' => 'success',
-				'data' => $finalData
-			]);
-		} catch (Exception $e) {
-			return json_encode([
-				'status' => 'error',
-				'message' => 'Database error: ' . $e->getMessage()
-			]);
-		}
-	}
-	
-	
-	public function getProgIssue($page = 1, $rowsPerPage = 20){
-		$page = isset($_POST['page'])? $_POST['page'] : $page; 
-		$emp_no = $_SESSION[_session_app_id]['emp_no'];
-		$offset = ($page - 1) * $rowsPerPage;
-		$countResult = $this->db->execute("SELECT COUNT(*) AS total FROM mIssue WHERE ditangani = $emp_no AND TanggalSelesai IS NULL");
-		$totalCount = $countResult[0]['total'];
-		$result = $this->db->execute("
-			SELECT * 
-			FROM mIssue 
-			WHERE Ditangani = $emp_no AND TanggalSelesai IS NULL 
-			ORDER BY Tanggal DESC
-			OFFSET $offset ROWS
-			FETCH NEXT $rowsPerPage ROWS ONLY
-		");
-	
-		return json_encode([
-			'data' => $result,
-			'total_count' => $totalCount  
-		]);
-	}
+                <!-- Tombol Submit -->
+                <button type="submit" class="btnPost" style="color: #00a652; border: 1px solid #d8d8dd; padding: 10px 30px; border-radius: 25px; text-align: center;">KIRIM</button> 
+            </div>
+        </form>
+        <!-- Success Popup -->
+        <div id="toast" class="toast">
+            <div class="content">
+                <div class="icon"><i></i></div>
+                <div class="message">
+                    <span class="text-1"></span>
+                    <span class="text-2"></span>
+                </div>
+            </div>
+            <div class="progress"></div>
+            <button class="close">×</button>
+        </div>
+    </div>
+</div>
+<style>
+     #issue {
+      padding-left: 20px;
+    }
 
-	public function getAllPengajuan($page = 1, $rowsPerPage = 20) {
-		$page = isset($_POST['page']) ? $_POST['page'] : $page;
-		$offset = ($page - 1) * $rowsPerPage;
-		$emp_no = $_SESSION[_session_app_id]['emp_no'];
+    .btnPost:hover{
+        background-color: #00a652;
+        color:#fff !important;
+    }
 
-		// Hitung total data
-		$countResult = $this->db->execute("SELECT COUNT(*) AS total FROM mPengajuan WHERE dari = '$emp_no'");
-		$totalCount = $countResult[0]['total'];
+    .popup {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 300px;
+        height: 400px;
+        border-radius: 20px;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+        display: none;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
 
-		// Ambil data + status
-		$result = $this->db->execute("
-			SELECT 
-				p.*, 
-				CASE 
-					WHEN a.NoPeng IS NOT NULL THEN '<span class=\"badge rounded-pill bg-label-info\">Completed</span>'
-					WHEN p.tanggalKonfirmasi IS NOT NULL THEN '<span class=\"badge rounded-pill bg-label-warning\">In Progress</span>'
-					ELSE '<span class=\"badge rounded-pill bg-label-success\">Open</span>'
-				END AS Status
-			FROM mPengajuan p
-			LEFT JOIN ACCPENGAJUAN a ON p.No = a.NoPeng
-			WHERE p.dari = '$emp_no'
-			ORDER BY p.tanggal DESC
-			OFFSET $offset ROWS 
-			FETCH NEXT $rowsPerPage ROWS ONLY
-		");
+    .top {
+        flex: 1;
+        text-align: center;
+        padding: 20px;
+    }
 
-		return json_encode([
-			'data' => $result,
-			'total_count' => $totalCount
-		]);
-	}
-	
-	public function getApk(){
-		$result = $this->db->execute("SELECT * FROM MAplikasi ORDER BY NamaAplikasi ASC");
-		// $result = $this->db->getAll('mIssue');
-		return json_encode($result);
-	}
+    .bottom {
+        flex: 2;
+        text-align: center;
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color:white !important;
+    }
 
-	public function getLaporan($jenis = "") {
-		$jenis = isset($_POST['jenis']) ? trim(strval($_POST['jenis'])) : trim(strval($jenis));
-		$lapList = [
-			"KomSw"  => "(3,4,7,9,17)",
-			"KomHw"  => "(5,9,17)",
-			"ReqSw"  => "(3,6,9,17)",
-			"ReqHw"  => "(8,9,17)",
-			"Hw"     => "(5,8,9,17)",
-			"Req"    => "(3,6,8,9,17)",
-			"Sw"     => "(3,4,6,7,9,17)",
-			"Kom"    => "(3,4,5,7,9,17)",
-			"AllComb"=> "" 
-		];
-	
-		if (!isset($lapList[$jenis])) {
-			$jenis = "AllComb";
-		}
-	
-		$query = ($lapList[$jenis] !== "") 
-			? "SELECT * FROM MJLaporan WHERE Lap IN {$lapList[$jenis]} ORDER BY NamaLaporan ASC"
-			: "SELECT * FROM MJLaporan ORDER BY NamaLaporan ASC";
-	
-		$result = $this->db->execute($query);
-		return json_encode($result);
-	}
-	
-	//11
-	public function getKomSw(){
-		$result = $this->db->execute("SELECT * FROM MJLaporan WHERE Lap IN (3,4,7,9,17) ORDER BY NamaLaporan ASC");
-		// $result = $this->db->getAll('mIssue');
-		return json_encode($result);
-	}
+    .popup button {
+        padding: 10px 20px;
+        background-color: white;
+        color: white;
+        border: none;
+        cursor: pointer;
+        border-radius: 5px;
+        color:#4CAF50;
+        font-style: bold;
+    }
 
-	//12
-	public function getKomHw(){
-		$result = $this->db->execute("SELECT * FROM MJLaporan WHERE Lap IN (5,9,17) ORDER BY NamaLaporan ASC");
-		// $result = $this->db->getAll('mIssue');
-		return json_encode($result);
-	}
+    .popup img {
+        display: block;
+        margin: 0 auto 10px auto; 
+        width: 35px;  
+        height: 350px; 
+        object-fit: cover; 
+    }
 
-	//21
-	public function getReqSw(){
-		$result = $this->db->execute("SELECT TOP 25 * FROM MJLaporan WHERE Lap IN (3,6,9,17) ORDER BY NamaLaporan ASC");
-		// $result = $this->db->getAll('mIssue');
-		return json_encode($result);
-	}
+    #dropzone {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        border: 2px dashed #00a652;
+        padding: 20px;
+        width: 100%;
+        min-height: 200px;
+        height: auto;
+        align-items: center;
+        justify-content: center;
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        transition: all 0.3s ease-in-out;
+    }
 
-	//22
-	public function getReqHw(){
-		$result = $this->db->execute("SELECT * FROM MJLaporan WHERE Lap IN (8,9,17) ORDER BY NamaLaporan ASC;");
-		// $result = $this->db->getAll('mIssue');
-		return json_encode($result);
-	}
+    #dropzone:hover {
+        background-color: #e9f7ef;
+        border-color: #007f4e;
+    }
 
-	//02
-	public function getHw(){
-		$result = $this->db->execute("SELECT * FROM MJLaporan WHERE Lap IN (5,8,9,17) ORDER BY NamaLaporan ASC;");
-		// $result = $this->db->getAll('mIssue');
-		return json_encode($result);
-	}
+    #dropzone-text {
+        color: #888;
+        font-size: 16px;
+        font-weight: bold;
+        text-align: center;
+    }
 
-	//20
-	public function getReq(){
-		$result = $this->db->execute("SELECT * FROM MJLaporan WHERE Lap IN (3,6,8,9,17) ORDER BY NamaLaporan ASC;");
-		// $result = $this->db->getAll('mIssue');
-		return json_encode($result);
-	}
+    .image-container {
+        position: relative;
+        display: inline-block;
+        cursor: pointer;
+        overflow: hidden;
+        border-radius: 10px;
+        transition: transform 0.3s ease-in-out;
+    }
 
-	//01
-	public function getSw(){
-		$result = $this->db->execute("SELECT * FROM MJLaporan WHERE Lap IN (3,4,6,7,9,17) ORDER BY NamaLaporan ASC;");
-		// $result = $this->db->getAll('mIssue');
-		return json_encode($result);
-	}
+    .image-container:hover {
+        transform: scale(1.05);
+    }
 
-	//10
-	public function getKom(){
-		$result = $this->db->execute("SELECT * FROM MJLaporan WHERE Lap IN (3,4,5,7,9,17) ORDER BY NamaLaporan ASC;");
-		// $result = $this->db->getAll('mIssue');
-		return json_encode($result);
-	}
+    .image-container img {
+        width: 100px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
 
-	//00
-	public function getAllComb(){
-		$result = $this->db->execute("SELECT * FROM MJLaporan ORDER BY NamaLaporan ASC;");
-		// $result = $this->db->getAll('mIssue');
-		return json_encode($result);
-	}
+    .image-info {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        color: white;
+        font-size: 12px;
+        text-align: center;
+        padding: 4px 0;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
 
-	public function postHD($No = "", $Seq=0, $NamaFile="",$key){
-		$file = [];
-		$file['name'] = $_FILES['file']['name'][$key];
-		$file['type'] = $_FILES['file']['type'][$key];
-		$file['tmp_name'] = $_FILES['file']['tmp_name'][$key];
-		$file['error'] = $_FILES['file']['error'][$key];
-		$file['size'] = $_FILES['file']['size'][$key];
-		uploadFile($file, glob_src('upload') , $NamaFile, $allow_type=['jpg','jpeg','png','gif','webp']);
-		$result = $this->db->insert("GBIssue",[
-			"No" => $No,
-			"Seq" => $Seq,
-			"NamaFile" => $NamaFile
-		]);
-		
-		if ($result) {
-			return json_encode([
-				'status' => 'success',
-				'message' => 'GBIssue inserted successfully'
-			]);
-		} else {
-			return json_encode(['status' => 'error', 'message' => 'Failed to insert GBIssue']);
-		}
-	}	
+    .image-container:hover .image-info {
+        opacity: 1;
+    }
 
-	public function getEditAll(){
-		$result = $this->db->execute("SELECT * FROM MIssue WHERE No = 'id_Issue';");
-		// $result = $this->db->getAll('mIssue');
-		return json_encode($result);
-	}
+    .delete-btn {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background: red;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        width: 24px;
+        height: 24px;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.3s;
+    }
 
-	public function getComCli($idIssue = ""){
-		$idIssue = isset($_POST['idIssue']) ? trim(strval($_POST['idIssue'])) : trim(strval($idIssue));
-		$result = $this->db->execute("SELECT * FROM MComCli WHERE NoIssue = '$idIssue' ORDER BY Waktu ASC;");
-		// $result = $this->db->getAll('mIssue');
-		return json_encode($result);
-	}
+    .image-container:hover .delete-btn {
+        display: flex;
+    }
 
-	public function insLiveChat($NoIssue="", $Waktu="", $Dari="", $Isi="", $idUser="") {
-		$NoIssue = isset($_POST['NoIssue']) ? trim(strval($_POST['NoIssue'])) : trim(strval($NoIssue));
-		$Waktu = isset($_POST['Waktu']) ? trim(strval($_POST['Waktu'])) : trim(strval($Waktu));
-		$Dari = isset($_POST['Dari']) ? trim(strval($_POST['Dari'])) : trim(strval($Dari));
-		$Isi = isset($_POST['Isi']) ? trim(strval($_POST['Isi'])) : trim(strval($Isi));
-		$idUser = isset($_POST['idUser']) ? trim(strval($_POST['idUser'])) : trim(strval($idUser));
+    .delete-btn:hover {
+        background: darkred;
+    }
 
-		error_log("Received idUser: " . $idUser);
-		try {
-			$result = $this->db->insert("MComCli", ['NoIssue' => $NoIssue, 'Waktu' => $Waktu, "Dari" => $Dari, "Isi" => $Isi, "isRead" => false, "idUser" => $idUser]);
-			if ($result) {
-				return json_encode([
-					'status' => 'success',
-					'message' => 'Chat message inserted successfully'
-				]);
-			} else {
-				return json_encode(['status' => 'error', 'message' => 'Failed to insert message']);
-			}
-		} catch (Exception $e) {
-			return json_encode(['status' => 'error', 'message' => 'Error: ' . $e->getMessage()]);
-		}
-	}	
-	
-	public function kerjakanIssue($No = "", $estimasiMenit = 0) {
-		// Ambil dan bersihkan nilai No
-		$No = isset($_POST['No']) ? $_POST['No'] : $No;
-	
-		// Menghilangkan karakter escape seperti \/ menggunakan json_decode
-		$No = json_decode('"' . $No . '"');
-		$No = trim($No);
-	
-		// Ambil estimasi waktu
-		$estimasiMenit = isset($_POST['estimasiMenit']) ? intval($_POST['estimasiMenit']) : intval($estimasiMenit);
-	
-		// Ambil user dari session
-		$currentUser = $_SESSION[_session_app_id]['emp_no'] ?? '';
-	
-		// Tanggal dan waktu sekarang
-		$currentDateTime = date('Y-m-d H:i:s') . '.' . substr(microtime(false), 2, 3);
-	
-		// Validasi input
-		if (empty($No)) {
-			return json_encode(['status' => 'error', 'message' => 'No Issue is required'], JSON_UNESCAPED_SLASHES);
-		}
-	
-		if (empty($currentUser)) {
-			return json_encode(['status' => 'error', 'message' => 'User not authenticated'], JSON_UNESCAPED_SLASHES);
-		}
-	
-		if ($estimasiMenit <= 0) {
-			return json_encode(['status' => 'error', 'message' => 'Estimation time is required'], JSON_UNESCAPED_SLASHES);
-		}
-	
-		try {
-			// Cek apakah issue ada dan belum ditangani
-			$checkQuery = "SELECT Ditangani FROM MIssue WHERE No = '$No'";
-			$existingIssue = $this->db->execute($checkQuery);
-	
-			if (empty($existingIssue)) {
-				return json_encode(['status' => 'error', 'message' => 'Issue not found'], JSON_UNESCAPED_SLASHES);
-			}
-	
-			if (!empty($existingIssue[0]['Ditangani'])) {
-				return json_encode(['status' => 'error', 'message' => 'Issue already taken by another user'], JSON_UNESCAPED_SLASHES);
-			}
-	
-			// Try different approaches for SQL Server compatibility
-			
-			// Method 1: Try with explicit field updates (most compatible)
-			$updateQuery1 = "UPDATE MIssue SET Ditangani = '$currentUser' WHERE No = '$No'";
-			$result1 = $this->db->execute($updateQuery1);
-			
-			if ($result1 !== false) {
-				// Update AcceptWork separately
-				$updateQuery2 = "UPDATE MIssue SET AcceptWork = '$currentDateTime' WHERE No = '$No'";
-				$result2 = $this->db->execute($updateQuery2);
-				
-				if ($result2 !== false) {
-					// Update EstimasiMenit separately
-					$updateQuery3 = "UPDATE MIssue SET EstimasiMenit = $estimasiMenit WHERE No = '$No'";
-					$result3 = $this->db->execute($updateQuery3);
-					
-					if ($result3 !== false) {
-						return json_encode([
-							'status' => 'success',
-							'message' => 'Issue successfully taken',
-							'data' => [
-								'No' => $No,
-								'Ditangani' => $currentUser,
-								'AcceptWork' => $currentDateTime,
-								'EstimasiMenit' => $estimasiMenit
-							]
-						], JSON_UNESCAPED_SLASHES);
-					}
-				}
-			}
-			
-			// Method 2: Try with quoted datetime format if Method 1 fails
-			$updateQuery = "UPDATE MIssue SET Ditangani = '$currentUser', AcceptWork = CAST('$currentDateTime' AS DATETIME2), EstimasiMenit = $estimasiMenit WHERE No = '$No'";
-			$result = $this->db->execute($updateQuery);
-	
-			if ($result !== false) {
-				return json_encode([
-					'status' => 'success',
-					'message' => 'Issue successfully taken',
-					'data' => [
-						'No' => $No,
-						'Ditangani' => $currentUser,
-						'AcceptWork' => $currentDateTime,
-						'EstimasiMenit' => $estimasiMenit
-					]
-				], JSON_UNESCAPED_SLASHES);
-			}
-			
-			// Method 3: Try with different datetime format if Method 2 fails
-			$simpleDatetime = date('Y-m-d H:i:s');
-			$updateQuery = "UPDATE MIssue SET Ditangani = '$currentUser', AcceptWork = '$simpleDatetime', EstimasiMenit = $estimasiMenit WHERE No = '$No'";
-			$result = $this->db->execute($updateQuery);
-	
-			if ($result !== false) {
-				return json_encode([
-					'status' => 'success',
-					'message' => 'Issue successfully taken',
-					'data' => [
-						'No' => $No,
-						'Ditangani' => $currentUser,
-						'AcceptWork' => $simpleDatetime,
-						'EstimasiMenit' => $estimasiMenit
-					]
-				], JSON_UNESCAPED_SLASHES);
-			}
-			
-			// Method 4: Use prepared statement approach if all else fails
-			try {
-				$preparedQuery = "UPDATE MIssue SET Ditangani = ?, AcceptWork = ?, EstimasiMenit = ? WHERE No = ?";
-				$params = [$currentUser, $currentDateTime, $estimasiMenit, $No];
-				$result = $this->db->execute($preparedQuery, $params);
-				
-				if ($result !== false) {
-					return json_encode([
-						'status' => 'success',
-						'message' => 'Issue successfully taken (prepared statement)',
-						'data' => [
-							'No' => $No,
-							'Ditangani' => $currentUser,
-							'AcceptWork' => $currentDateTime,
-							'EstimasiMenit' => $estimasiMenit
-						]
-					], JSON_UNESCAPED_SLASHES);
-				}
-			} catch (Exception $preparedEx) {
-				// Continue to final error if prepared statement also fails
-			}
-	
-			// If all methods fail, return detailed error information
-			return json_encode([
-				'status' => 'error',
-				'message' => 'Failed to update issue - all methods tried',
-				'debug_info' => [
-					'no' => $No,
-					'user' => $currentUser,
-					'datetime' => $currentDateTime,
-					'estimation' => $estimasiMenit,
-					'final_query' => $updateQuery,
-					'db_result' => $result
-				]
-			], JSON_UNESCAPED_SLASHES);
-	
-		} catch (Exception $e) {
-			return json_encode([
-				'status' => 'error',
-				'message' => 'Error: ' . $e->getMessage(),
-				'debug_info' => [
-					'no' => $No,
-					'user' => $currentUser,
-					'datetime' => $currentDateTime
-				]
-			], JSON_UNESCAPED_SLASHES);
-		}
-	}
-	
-	
-	public function selesaikanIssue($No = "", $solusi = "", $catatan = "") {
-		$No = isset($_POST['No']) ? $_POST['No'] : $No;
-		$No = json_decode('"' . $No . '"');
-		$No = trim($No);
-		$solusi = isset($_POST['solusi']) ? trim(strval($_POST['solusi'])) : trim(strval($solusi));
-		$catatan = isset($_POST['catatan']) ? trim(strval($_POST['catatan'])) : trim(strval($catatan));
-		
-		$currentUser = $_SESSION[_session_app_id]['emp_no'] ?? '';
-		
-		$currentDateTime = date('Y-m-d H:i:s') . '.' . substr(microtime(false), 2, 3);
-		
-		try {
-			// Check if issue exists and is being worked on by current user
-			$checkQuery = "SELECT Ditangani, AcceptWork, EstimasiMenit, TanggalSelesai FROM MIssue WHERE No = '$No'";
-			$existingIssue = $this->db->execute($checkQuery);
-			
-			if (empty($existingIssue)) {
-				return json_encode(['status' => 'error', 'message' => 'Issue not found']);
-			}
-			
-			if ($existingIssue[0]['Ditangani'] !== $currentUser) {
-				return json_encode(['status' => 'error', 'message' => 'You are not assigned to this issue']);
-			}
-			
-			if (!empty($existingIssue[0]['TanggalSelesai'])) {
-				return json_encode(['status' => 'error', 'message' => 'Issue already completed']);
-			}
-			
-			// Calculate actual work time
-			$acceptTime = new DateTime($existingIssue[0]['AcceptWork']);
-			$finishTime = new DateTime($currentDateTime);
-			$actualMinutes = round(($finishTime->getTimestamp() - $acceptTime->getTimestamp()) / 60);
-			
-			// Escape strings for SQL safety
-			$escapedSolusi = str_replace("'", "''", $solusi);
-			$escapedCatatan = str_replace("'", "''", $catatan);
-			
-			// Update the issue with full SQL query
-			$updateQuery = "UPDATE MIssue SET TanggalSelesai = '$currentDateTime', Solusi = '$escapedSolusi', CatatanIT = '$escapedCatatan', AktualMenit = $actualMinutes WHERE No = '$No'";
-			
-			$result = $this->db->execute($updateQuery);
-			
-			if ($result !== false) {
-				return json_encode([
-					'status' => 'success',
-					'message' => 'Issue successfully completed',
-					'data' => [
-						'No' => $No,
-						'TanggalSelesai' => $currentDateTime,
-						'EstimasiMenit' => $existingIssue[0]['EstimasiMenit'],
-						'AktualMenit' => $actualMinutes,
-						'Solusi' => $solusi,
-						'CatatanIT' => $catatan
-					]
-				]);
-			} else {
-				return json_encode(['status' => 'error', 'message' => 'Failed to complete issue']);
-			}
-			
-		} catch (Exception $e) {
-			return json_encode(['status' => 'error', 'message' => 'Error: ' . $e->getMessage()]);
-		}
-	}
+    @import url(https://fonts.googleapis.com/css?family=Open+Sans:400,700);
 
-	public function issueGenID(){
-		$year = date('Y');
-		$shortYear = substr($year, -2);
-		$query = "SELECT COUNT(*) as total FROM MIssue WHERE YEAR(Tanggal) = '$year'";
-		$result = $this->db->execute($query);
-		$count = $result[0]['total'] ?? 0;
-		$newNumber = $count + 1;
-		$formattedNumber = str_pad($newNumber, 6, '0', STR_PAD_LEFT);
-		$newID = "IT/$shortYear/$formattedNumber";
-		return json_encode($newID);
-	}	
-	
-	public function getAtP(){
-		$query = "SELECT TOP 1 MPATA FROM MAtP;";
-		$result = $this->db->execute($query);
+    .center-button {
+        padding: 15px 25px;
+        font-size: 18px;
+        font-weight: bold;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: 0.3s;
+    }
 
-		if (!$result || empty($result)) {
-			return json_encode(0); 
-		}
+    .center-button:hover {
+        background-color: #0056b3;
+    }
 
-		return json_encode(intval($result[0]['MPATA'])); 
-	}
+    /* Toast (notifikasi) */
+    .toast {
+        position: fixed;
+        top: 20px; 
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 9999; 
+        display: none;
+        padding: 15px 20px;
+        border-radius: 5px;
+        color: white;
+        font-size: 16px;
+        font-weight: bold;
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+        max-width: 300px;
+        text-align: center;
+    }
 
-	public function getNotif() {
-		$query = "
-			SELECT mc1.*
-				, (
-					SELECT COUNT(*) 
-					FROM MComCli mc2 
-					WHERE mc2.NoIssue = mc1.NoIssue AND mc2.isRead = 0
-				) AS unread_count
-			FROM MComCli mc1
-			INNER JOIN (
-				SELECT NoIssue, MAX(Waktu) AS MaxWaktu
-				FROM MComCli
-				WHERE isRead = 0
-				GROUP BY NoIssue
-			) latest ON mc1.NoIssue = latest.NoIssue AND mc1.Waktu = latest.MaxWaktu
-			ORDER BY mc1.Waktu DESC
-		";
-	
-		$result = $this->db->execute($query);
-		return json_encode($result);
-	}	
+    /* Warna untuk setiap jenis notifikasi */
+    .toast.success { background-color: #28a745; }
+    .toast.error { background-color: #dc3545; }
 
-	public function markAllNotifRead() {
-		try {
-			// Mark all unread notifications as read
-			$query = "UPDATE MComCli SET isRead = 1 WHERE isRead = 0";
-			$result = $this->db->execute($query);
-			
-			return json_encode([
-				'status' => 'success',
-				'message' => 'All notifications marked as read'
-			]);
-		} catch (Exception $e) {
-			return json_encode([
-				'status' => 'error', 
-				'message' => 'Error marking notifications as read: ' . $e->getMessage()
-			]);
-		}
-	}
+</style>
+<script type="text/javascript">
+	// $(document).ready(()=>{
+	// 	var tmp_calon_customer = rutanApi('DataCalonCustomerSAP', 'Wyge7d6IEmI3PmJSMMMM', {iddbase:'DB00000031', idapi:'API0000410'});
+	// 	startForm(tmp_calon_customer);
+	// });
 
-	public function markNotifReadByNoCom() {
-		$noCom = isset($_POST['NoCom']) ? $_POST['NoCom'] : '';
-		
-		if (empty($noCom)) {
-			return json_encode([
-				'status' => 'error', 
-				'message' => 'NoCom tidak dikirim'
-			]);
-		}
-		
-		try {
-			// Use prepared statement for security
-			$query = "UPDATE MComCli SET isRead = 1 WHERE NoCom = ?";
-			$result = $this->db->execute($query, [$noCom]);
-			
-			return json_encode([
-				'status' => 'success',
-				'message' => 'Notification marked as read'
-			]);
-		} catch (Exception $e) {
-			return json_encode([
-				'status' => 'error',
-				'message' => 'Error: ' . $e->getMessage()
-			]);
-		}
-	}
+	// function startForm() {
+    //     tmp_post = sendPost("Issue", { type_submit: "getIssue" });
+    //     htmlbody = "";
+    //     $.each(tmp_post, function (index, row) {
+    //         htmlbody += `<tr>
+    //             <td>${row.dari}</td>
+    //             <td>${dateFormat(row.Tanggal.date, 'd-m-Y')}</td>
+    //             <td>${row.Jenis}</td>
+    //         </tr>`;
+    //     });
+    //     $('#table-view tbody').html(htmlbody);
+    //     $('#table-view table').dataTable();
+    // }
 
-	public function markNotifReadByNoIssue() {
-		$noIssue = isset($_POST['NoIssue']) ? $_POST['NoIssue'] : '';
-		
-		if (empty($noIssue)) {
-			return json_encode([
-				'status' => 'error',
-				'message' => 'NoIssue tidak dikirim'
-			]);
-		}
-	
-		try {
-			$query = "UPDATE MComCli SET isRead = 1 WHERE NoIssue = ? AND isRead = 0";
-			$params = [$noIssue];
-			foreach ($params as $val) {
-				$val = is_numeric($val) ? $val : "'" . addslashes($val) . "'";
-				$query = preg_replace('/\?/', $val, $query, 1);
-			}
-			$result = $this->db->execute($query); 
-	
-			if ($result) {
-				return json_encode([
-					'status' => 'success',
-					'message' => 'All notifications for issue marked as read',
-					'updated_rows' => $result,
-					'NoIssue' => $noIssue
-				]);
-			} else {
-				return json_encode([
-					'status' => 'error',
-					'message' => 'No rows updated or already read',
-					'NoIssue' => $noIssue
-				]);
-			}
-	
-		} catch (Exception $e) {
-			return json_encode([
-				'status' => 'error',
-				'message' => 'Exception: ' . $e->getMessage()
-			]);
-		}
-	}	
+    // startForm();
 
-	public function markChatAsRead() {
-		$noIssue = isset($_POST['NoIssue']) ? $_POST['NoIssue'] : '';
-		$currentUser = isset($_SESSION[_session_app_id]['emp_no']) ? $_SESSION[_session_app_id]['emp_no'] : '';
-		
-		if (empty($noIssue)) {
-			return json_encode([
-				'status' => 'error', 
-				'message' => 'NoIssue tidak dikirim'
-			]);
-		}
-		
-		try {
-			// Mark all chat messages as read for this issue except messages from current user
-			$query = "UPDATE MComCli SET isRead = 1 WHERE NoIssue = ? AND Dari != ? AND isRead = 0";
-			$result = $this->db->execute($query, [$noIssue, $currentUser]);
-			
-			return json_encode([
-				'status' => 'success',
-				'message' => 'Chat marked as read'
-			]);
-		} catch (Exception $e) {
-			return json_encode([
-				'status' => 'error',
-				'message' => 'Error: ' . $e->getMessage()
-			]);
-		}
-	}
-	
-	public function createHD($No = "", $prioritas = "", $Tanggal = "", $dari = "", $tujuan = "", $kategori = "", $Jenis = "", $Aplikasi = "", $issue = "", $accPATA = "", $AcceptWork = "", $Rating = 0) {
-		$No = isset($_POST['No']) ? trim(strval($_POST['No'])) : trim(strval($No));
-		$prioritas = isset($_POST['prioritas']) ? trim(strval($_POST['prioritas'])) : trim(strval($prioritas));
-		$Tanggal = isset($_POST['Tanggal']) ? trim(strval($_POST['Tanggal'])) : trim(strval($Tanggal));
-		$dari = isset($_POST['dari']) ? trim(strval($_POST['dari'])) : trim(strval($dari));
-		$tujuan = isset($_POST['tujuan']) ? trim(strval($_POST['tujuan'])) : trim(strval($tujuan));
-		$kategori = isset($_POST['kategori']) ? trim(strval($_POST['kategori'])) : trim(strval($kategori));
-		$Jenis = isset($_POST['Jenis']) ? trim(strval($_POST['Jenis'])) : trim(strval($Jenis));
-		$Aplikasi = isset($_POST['Aplikasi']) ? trim(strval($_POST['Aplikasi'])) : trim(strval($Aplikasi));
-		$issue = isset($_POST['issue']) ? trim(strval($_POST['issue'])) : trim(strval($issue));
-		$accPATA = isset($_POST['accPATA']) ? trim(strval($_POST['accPATA'])) : trim(strval($accPATA));
-		$TanggalKonfirmasi = isset($_POST['TanggalKonfirmasi']) ? trim(strval($_POST['TanggalKonfirmasi'])) : trim(strval($AcceptWork));
-		$Rating = isset($_POST['Rating']) ? intval($_POST['Rating']) : intval($Rating);
-		// dd([$_POST,$_FILES['file']]);
+    function pad(num, size) {
+        let s = "000000000" + num;
+        return s.substr(s.length - size);
+    }
 
-		try {
-			if($accPATA == 1){
-				$result = $this->db->insert("MIssue", [
-					"No" => $No,
-					"prioritas" => $prioritas,
-					"Tanggal" => $Tanggal,
-					"dari" => $dari,
-					"tujuan" => $tujuan,
-					"kategori" => $kategori,
-					"Jenis" => $Jenis,
-					"Aplikasi" => $Aplikasi,
-					"issue" => $issue,
-					"accPATA" => $accPATA,
-					"Rating" => $Rating,
-					"autoppilot" => 1,
-					"TanggalKonfirmasi" => $TanggalKonfirmasi,
-					"Konfirmasi" => 1
-				]);
-			}
-			
-			$st_gmbr = [];
-			if (!empty($_FILES)) {
-				foreach ($_FILES['file']['tmp_name'] as $key => $tmp) {
-					$NamaFile = $No . "_" . ($key + 1) . "." . pathinfo($_FILES['file']['name'][$key], PATHINFO_EXTENSION);
-					$st_gmbr[] = json_decode($this->postHD($No, $key + 1, $NamaFile, $key), true);
-				}
-			}
-	
-			if ($result) {
-				return json_encode([
-					'status' => 'success',
-					'message' => 'Issue inserted successfully',
-					'st_gmbr' => $st_gmbr
-				]);
-			} else {
-				return json_encode(['status' => 'error', 'message' => 'Failed to insert pengajuan']);
-			}
-		} catch (Exception $e) {
-			return json_encode(['status' => 'error', 'message' => 'Error: ' . $e->getMessage()]);
-		}
-	}
-	public function createPengajuan() {
-		$cabang = isset($_POST['cabang']) ? trim(strval($_POST['cabang'])) : 'P';
-		$No = isset($_POST['No']) && $_POST['No'] !== '' ? trim(strval($_POST['No'])) : $this->generateNoPJ($cabang);
-		$namainvestasi = isset($_POST['namainvestasi']) ? trim(strval($_POST['namainvestasi'])) : "";
-		$biaya = isset($_POST['biaya']) ? trim(strval($_POST['biaya'])) : 0;
-		$dari = isset($_POST['dari']) ? trim(strval($_POST['dari'])) : "";
-		$kepada = isset($_POST['kepada']) ? trim(strval($_POST['kepada'])) : "";
-		$up = isset($_POST['up']) ? trim(strval($_POST['up'])) : "";
-		$keterangan = isset($_POST['keterangan']) ? trim(strval($_POST['keterangan'])) : "";
-		$tanggal = date("Y-m-d H:i:s");
-	
-		try {
-			$result = $this->db->insert("mPengajuan", [
-				"No" => $No,
-				"namainvestasi" => $namainvestasi,
-				"biaya" => $biaya,
-				"Tanggal" => $tanggal,
-				"Dari" => $dari,
-				"Kepada" => $kepada,
-				"cabang" => $cabang,
-				"up" => $up,
-				"keterangan" => $keterangan
-			]);
-	
-			$st_gmbr = [];
-			if (!empty($_FILES)) {
-				foreach ($_FILES['file']['tmp_name'] as $key => $tmp) {
-					$NamaFile = $No . "_" . ($key + 1) . "." . pathinfo($_FILES['file']['name'][$key], PATHINFO_EXTENSION);
-					$st_gmbr[] = json_decode($this->postPengajuanFile($No, $key + 1, $NamaFile, $key), true);
-				}
-			}
-	
-			if ($result) {
-				return json_encode([
-					'status' => 'success',
-					'message' => 'Pengajuan inserted successfully',
-					'st_gmbr' => $st_gmbr
-				]);
-			} else {
-				return json_encode(['status' => 'error', 'message' => 'Failed to insert pengajuan']);
-			}
-		} catch (Exception $e) {
-			return json_encode(['status' => 'error', 'message' => 'Error: ' . $e->getMessage()]);
-		}
-	}
-	
-	public function postPengajuanFile($No = "", $Seq = 0, $NamaFile = "", $key = 0) {
-		$file = [
-			'name' => $_FILES['file']['name'][$key],
-			'type' => $_FILES['file']['type'][$key],
-			'tmp_name' => $_FILES['file']['tmp_name'][$key],
-			'error' => $_FILES['file']['error'][$key],
-			'size' => $_FILES['file']['size'][$key]
-		];
-	
-		uploadFile($file, glob_src('upload'), $NamaFile, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
-	
-		$result = $this->db->insert("GBPengajuan", [
-			"No" => $No,
-			"Seq" => $Seq,
-			"NamaFile" => $NamaFile
-		]);
-	
-		if ($result) {
-			return json_encode([
-				'status' => 'success',
-				'message' => 'GBPengajuan inserted successfully'
-			]);
-		} else {
-			return json_encode(['status' => 'error', 'message' => 'Failed to insert GBPengajuan']);
-		}
-	}
-	
-	public function generateNoPJ($cabang = '' ){
-		$tahun = date('y');      
-		$bulan = date('m');     
-		$prefix = "HR-IT" . $cabang . "-{$tahun}{$bulan}"; 
-	
-		$query = "
-			SELECT TOP 1 
-				RIGHT('000' + CAST(CAST(SUBSTRING(No, 12, 3) AS INT) + 1 AS VARCHAR), 3) AS no 
-			FROM mPengajuan 
-			WHERE SUBSTRING(No, 9, 2) = '{$tahun}' 
-			  AND SUBSTRING(No, 11, 2) = '{$bulan}' 
-			  AND SUBSTRING(No, 7, 1) = '{$cabang}' 
-			ORDER BY No DESC
-		";
-	
-		$result = $this->db->execute($query);
-	
-		if (!empty($result) && isset($result[0]['no'])) {
-			$urutan = $result[0]['no'];
-		} else {
-			$urutan = '001';
-		}
-	
-		return "{$prefix}{$urutan}";
-	}	
-	
+    function setTimestamp() {
+        const now = new Date();
+        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+        const gm7 = new Date(utc + (7 * 60 * 60000));
+        window.rawTimestamp = `${gm7.getFullYear()}-${pad(gm7.getMonth() + 1, 2)}-${pad(gm7.getDate(), 2)} ` +
+                          `${pad(gm7.getHours(), 2)}:${pad(gm7.getMinutes(), 2)}:${pad(gm7.getSeconds(), 2)}.${pad(gm7.getMilliseconds(), 3)}`;
 
-	//-----------------------------------------------------------
+        const day = pad(gm7.getDate(), 2);
+        const month = pad(gm7.getMonth() + 1, 2);
+        const year = gm7.getFullYear();
+        const hours = pad(gm7.getHours(), 2);
+        const minutes = pad(gm7.getMinutes(), 2);
+        const formattedTime = `${day}-${month}-${year} / ${hours}:${minutes} WIB`;
+        document.getElementById('timestamp').innerText = formattedTime;
+    }
+    setInterval(setTimestamp, 1000);
 
-	public function createDummyIssue() {
-		try {
-			// Generate unique issue number
-			$issueNo = $this->generateTestIssueNumber();
-			
-			$dummyIssueData = [
-				'No' => $issueNo,
-				'prioritas' => 'Medium',
-				'Tanggal' => date('Y-m-d H:i:s'),
-				'dari' => 'TEST_USER_001',
-				'tujuan' => '000830',
-				'kategori' => 'Testing',
-				'Jenis' => 'Test Issue',
-				'Aplikasi' => 'Dummy App',
-				'issue' => 'This is a test issue created for notification testing',
-				'accPATA' => 1,
-				'AcceptWork' => 1,
-				'ditangani' => null,
-				'TanggalSelesai' => null
-			];
-			
-			$result = $this->db->insert("MIssue", $dummyIssueData);
-			
-			if ($result) {
-				return json_encode([
-					'status' => 'success',
-					'message' => 'Dummy issue created successfully',
-					'issue_no' => $issueNo
-				]);
-			} else {
-				return json_encode([
-					'status' => 'error',
-					'message' => 'Failed to create dummy issue'
-				]);
-			}
-			
-		} catch (Exception $e) {
-			return json_encode([
-				'status' => 'error',
-				'message' => 'Error creating dummy issue: ' . $e->getMessage()
-			]);
-		}
-	}
-	
+    function enableNext(nextSelectId) {
+        const nextSelect = document.getElementById(nextSelectId);
+        const prevSelect = document.getElementById('floatingSelect3');
 
-	private function generateTestIssueNumber() {
-		$year = date('Y');
-		$shortYear = substr($year, -2);
-		$timestamp = date('His'); // Hour, minute, second
-		$random = rand(100, 999);
-		return "TEST/$shortYear/$timestamp$random";
-	}
-	
-	/**
-	 * Create dummy chat messages for testing
-	 */
-	public function createDummyChat() {
-		$NoIssue = isset($_POST['NoIssue']) ? $_POST['NoIssue'] : $this->generateTestIssueNumber();
-		$Waktu = isset($_POST['Waktu']) ? $_POST['Waktu'] : date('Y-m-d H:i:s');
-		$Dari = isset($_POST['Dari']) ? $_POST['Dari'] : 'TEST_USER_001';
-		$Isi = isset($_POST['Isi']) ? $_POST['Isi'] : 'This is a test message for notification testing';
-		$idUser = isset($_POST['idUser']) ? $_POST['idUser'] : '000830';
-		
-		try {
-			// First ensure the issue exists (create if it doesn't)
-			$this->ensureTestIssueExists($NoIssue);
-			
-			// Create the chat message
-			$chatData = [
-				'NoIssue' => $NoIssue,
-				'Waktu' => $Waktu,
-				'Dari' => $Dari,
-				'Isi' => $Isi,
-				'isRead' => 0, // Always unread for testing
-				'idUser' => $idUser
-			];
-			
-			$result = $this->db->insert("MComCli", $chatData);
-			
-			if ($result) {
-				return json_encode([
-					'status' => 'success',
-					'message' => 'Dummy chat message created successfully',
-					'data' => $chatData
-				]);
-			} else {
-				return json_encode([
-					'status' => 'error',
-					'message' => 'Failed to create dummy chat message'
-				]);
-			}
-			
-		} catch (Exception $e) {
-			return json_encode([
-				'status' => 'error',
-				'message' => 'Error creating dummy chat: ' . $e->getMessage()
-			]);
-		}
-	}
-	
-	/**
-	 * Ensure test issue exists, create if it doesn't
-	 */
-	private function ensureTestIssueExists($issueNo) {
-		try {
-			// Check if issue exists
-			$checkQuery = "SELECT COUNT(*) as count FROM MIssue WHERE No = ?";
-			$result = $this->db->execute($checkQuery, [$issueNo]);
-			
-			if ($result[0]['count'] == 0) {
-				// Issue doesn't exist, create it
-				$issueData = [
-					'No' => $issueNo,
-					'prioritas' => 'Medium',
-					'Tanggal' => date('Y-m-d H:i:s'),
-					'dari' => 'TEST_USER_001',
-					'tujuan' => '000830',
-					'kategori' => 'Testing',
-					'Jenis' => 'Test Issue',
-					'Aplikasi' => 'Test App',
-					'issue' => 'Auto-created test issue for chat testing',
-					'accPATA' => 1,
-					'AcceptWork' => 1,
-					'ditangani' => null,
-					'TanggalSelesai' => null
-				];
-				
-				$this->db->insert("MIssue", $issueData);
-			}
-			
-			return true;
-		} catch (Exception $e) {
-			error_log("Error ensuring test issue exists: " . $e->getMessage());
-			return false;
-		}
-	}
-	
-	/**
-	 * Clear test data (remove dummy messages and issues)
-	 */
-	public function clearTestData() {
-		try {
-			// Delete test chat messages
-			$deleteChatQuery = "DELETE FROM MComCli WHERE Dari LIKE 'TEST_%' OR NoIssue LIKE 'TEST/%'";
-			$this->db->execute($deleteChatQuery);
-			
-			// Delete test issues  
-			$deleteIssueQuery = "DELETE FROM MIssue WHERE No LIKE 'TEST/%' OR dari LIKE 'TEST_%'";
-			$this->db->execute($deleteIssueQuery);
-			
-			return json_encode([
-				'status' => 'success',
-				'message' => 'Test data cleared successfully'
-			]);
-			
-		} catch (Exception $e) {
-			return json_encode([
-				'status' => 'error',
-				'message' => 'Error clearing test data: ' . $e->getMessage()
-			]);
-		}
-	}
-	
-	/**
-	 * Create multiple dummy messages for batch testing
-	 */
-	public function createBatchDummyChats() {
-		$count = isset($_POST['count']) ? intval($_POST['count']) : 5;
-		$targetUser = isset($_POST['targetUser']) ? $_POST['targetUser'] : '000830';
-		
-		try {
-			$created = 0;
-			$senders = ['000630', '000351', '000379', '000772', '000543'];
-			$messages = [
-				'Hello, I need help with my computer',
-				'The printer is not working properly',
-				'Can you help me reset my password?',
-				'System is running very slow today',
-				'Need assistance with software installation',
-				'Error message keeps appearing',
-				'Cannot access shared folder',
-				'Email is not syncing properly',
-				'Software license expired',
-				'Network connection issues'
-			];
-			
-			for ($i = 0; $i < $count; $i++) {
-				$issueNo = $this->generateTestIssueNumber();
-				$this->ensureTestIssueExists($issueNo);
-				
-				$chatData = [
-					'NoIssue' => $issueNo,
-					'Waktu' => date('Y-m-d H:i:s', time() + ($i * 60)), // Stagger by minutes
-					'Dari' => $senders[$i % count($senders)],
-					'Isi' => $messages[$i % count($messages)],
-					'isRead' => 0,
-					'idUser' => $targetUser
-				];
-				
-				$result = $this->db->insert("MComCli", $chatData);
-				if ($result) $created++;
-			}
-			
-			return json_encode([
-				'status' => 'success',
-				'message' => "$created dummy chat messages created successfully",
-				'created_count' => $created
-			]);
-			
-		} catch (Exception $e) {
-			return json_encode([
-				'status' => 'error',
-				'message' => 'Error creating batch dummy chats: ' . $e->getMessage()
-			]);
-		}
-	}
-	
-	/**
-	 * Get test data statistics
-	 */
-	public function getTestDataStats() {
-		try {
-			// Count test chats
-			$chatQuery = "SELECT COUNT(*) as count FROM MComCli WHERE Dari LIKE 'TEST_%' OR NoIssue LIKE 'TEST/%'";
-			$chatResult = $this->db->execute($chatQuery);
-			$chatCount = $chatResult[0]['count'];
-			
-			// Count test issues
-			$issueQuery = "SELECT COUNT(*) as count FROM MIssue WHERE No LIKE 'TEST/%' OR dari LIKE 'TEST_%'";
-			$issueResult = $this->db->execute($issueQuery);
-			$issueCount = $issueResult[0]['count'];
-			
-			// Count unread test messages
-			$unreadQuery = "SELECT COUNT(*) as count FROM MComCli WHERE (Dari LIKE 'TEST_%' OR NoIssue LIKE 'TEST/%') AND isRead = 0";
-			$unreadResult = $this->db->execute($unreadQuery);
-			$unreadCount = $unreadResult[0]['count'];
-			
-			return json_encode([
-				'status' => 'success',
-				'stats' => [
-					'test_chats' => $chatCount,
-					'test_issues' => $issueCount,
-					'unread_test_messages' => $unreadCount
-				]
-			]);
-			
-		} catch (Exception $e) {
-			return json_encode([
-				'status' => 'error',
-				'message' => 'Error getting test data stats: ' . $e->getMessage()
-			]);
-		}
-	}
-}
-?>
+        if (nextSelectId === "floatingSelect4" && prevSelect.value === "") {
+            return;
+        }
+
+        if (nextSelect) {
+            nextSelect.disabled = false;
+        }
+    }
+
+    function toggleProgramSelect() {
+        const categorySelect = document.getElementById('floatingSelect2'); 
+        const programSelectDiv = document.getElementById('programSelectDiv'); 
+        const programSelect4 = document.getElementById('floatingSelect4'); 
+        const jenisLaporanSelect = document.getElementById('floatingSelect3'); 
+        if (!categorySelect || !programSelectDiv || !programSelect4 || !jenisLaporanSelect) return;
+
+        const categoryValue = categorySelect.value;
+
+        if (categoryValue === "1") {
+            programSelectDiv.style.display = "block";
+            programSelect4.disabled = true;
+
+            if (jenisLaporanSelect.value !== "") {
+                programSelect4.disabled = false;
+            }
+
+            if (jenisLaporanSelect.value === "") {
+                programSelect4.value = "";
+            }
+
+            jenisLaporanSelect.value = "";
+        } else {
+            programSelectDiv.style.display = "none";
+            programSelect4.disabled = true;
+            jenisLaporanSelect.value = "";
+            programSelect4.value = "";
+        }
+    }
+
+    function handleChange() {
+        toggleProgramSelect();
+        enableNext('floatingSelect3');
+    }
+
+    function printApk() {
+        tmp_post = sendPost("Issue", { type_submit: "getAPK" });
+        let htmlbody = "";
+
+        $.each(tmp_post, function (index, row) {
+            // Check if 'aktif' is 1
+            if (row.Aktif == 1) {
+                htmlbody += `
+                    <option value="${row.Apl}">${row.NamaAplikasi}</option>
+                `;
+            }
+        });
+        $('#floatingSelect4').html(`
+            <option value="" selected disabled>Open this select menu</option>
+            ${htmlbody}
+        `);
+        $('#programSelectDiv').show();
+    }
+    printApk();
+
+    function printKomSw() {
+        komSw = sendPost("Issue", { type_submit: "getKomSw" });
+        htmlbody = "";
+        $.each(komSw, function (index, row) {
+            htmlbody += `
+                <option value="${row.Lap}">${row.NamaLaporan}</option>
+            `;
+        });
+        $('#floatingSelect3').html(`
+            <option value="" selected disabled>Open this select menu</option>
+            ${htmlbody}
+        `);
+    }
+
+    function printKomHw() {
+        komHw = sendPost("Issue", { type_submit: "getKomHw" });
+        htmlbody = "";
+        $.each(komHw, function (index, row) {
+            htmlbody += `
+                <option value="${row.Lap}">${row.NamaLaporan}</option>
+            `;
+        });
+        $('#floatingSelect3').html(`
+            <option value="" selected disabled>Open this select menu</option>
+            ${htmlbody}
+        `);
+    }
+
+    function printReqSw() {
+        ReqSw = sendPost("Issue", { type_submit: "getReqSw" });
+        htmlbody = "";
+        $.each(ReqSw, function (index, row) {
+            htmlbody += `
+                <option value="${row.Lap}">${row.NamaLaporan}</option>
+            `;
+        });
+        $('#floatingSelect3').html(`
+            <option value="" selected disabled>Open this select menu</option>
+            ${htmlbody}
+        `);
+    }
+
+    function printReqHw() {
+        ReqHw = sendPost("Issue", { type_submit: "getReqHw" });
+        htmlbody = "";
+        $.each(ReqHw, function (index, row) {
+            htmlbody += `
+                <option value="${row.Lap}">${row.NamaLaporan}</option>
+            `;
+        });
+        $('#floatingSelect3').html(`
+            <option value="" selected disabled>Open this select menu</option>
+            ${htmlbody}
+        `);
+    }
+
+    function handleCombination() {
+        const tujuan = document.getElementById("floatingSelect1").value;
+        const kategori = document.getElementById("floatingSelect2").value;
+        const select3 = document.getElementById("floatingSelect3");
+
+        // Reset and populate the third select
+        select3.innerHTML = '<option value="" selected disabled>Open this select menu</option>'; 
+        if (tujuan && kategori) {
+            let options = [];
+
+            if (tujuan == "1" && kategori == "1") {
+                printKomSw();;
+            } else if (tujuan == "1" && kategori == "2") {
+                printKomHw();;
+            } else if (tujuan == "2" && kategori == "1") {
+                printReqSw();;
+            } else if (tujuan == "2" && kategori == "2") {
+                printReqHw();;
+            }
+
+            options.forEach(function(option) {
+                let opt = document.createElement("option");
+                opt.value = option;
+                opt.innerHTML = option;
+                select3.appendChild(opt);
+            });
+            select3.removeAttribute("disabled");
+        } else {
+            select3.setAttribute("disabled", "true");
+        }
+    }
+
+    function closePopup(popupId) {
+        document.getElementById(popupId).style.display = 'none';
+        document.getElementById('helpdeskForm').reset();
+        document.getElementById('error-message').style.display = 'none';
+    }
+
+    function submitHD(){
+        tes = submitPost(target='Issue', type_submit='postHD', id_form='helpdeskForm', data={}, reload=false);
+        console.log(tes);
+    }
+
+    async function printPegawai() {
+        let getPG = await rutanApi('GetAllPegawai', 'mP60RM7Spq9pMSYPRsCD', {
+            iddbase: "DB00000023",
+            idapi: "API0000700"
+        });
+
+        // Pastikan data sudah benar sebelum disort
+        if (Array.isArray(getPG) && getPG.length > 0) {
+            getPG = getPG.sort(function(a, b){
+                var aName = a.first_name.toLowerCase();
+                var bName = b.first_name.toLowerCase(); 
+                return ((aName < bName) ? -1 : ((aName > bName) ? 1 : 0));
+            });
+
+            let htmlbody = getPG.map(row => `<option value="${row.emp_no}">${row.first_name}</option>`).join("");
+
+            $('#takePegawai').html(`
+                <option value="<?= $_SESSION[_session_app_id]['emp_no'] ?>" selected><?= $_SESSION[_session_app_id]['first_name'] ?></option>
+                ${htmlbody}
+            `);
+        } else {
+            console.error("Data format error: getPG is not an array or it's empty.");
+        }
+
+        // Event listener untuk mencetak value saat user memilih opsi
+        $(document).on("change", "#takePegawai", function () {
+            console.log("Selected Employee ID:", $(this).val());
+        });
+    }
+
+    printPegawai()
+
+    document.querySelector(".btnPost").addEventListener("click", async function (event) {
+        event.preventDefault();
+
+        function pad(num, size) {
+            return num.toString().padStart(size, '0');
+        }
+
+        try {
+            let accPATA = sendPost("Issue", { type_submit: "getAtP" });
+            let prioritas = null;
+            let TanggalKonfirmasi = null;
+
+            if (accPATA == 1) {
+                prioritas = 2;
+                let now = new Date();
+                let utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+                let gm7 = new Date(utc + (7 * 60 * 60000));
+                TanggalKonfirmasi = `${gm7.getFullYear()}-${pad(gm7.getMonth() + 1, 2)}-${pad(gm7.getDate(), 2)} ` +
+                    `${pad(gm7.getHours(), 2)}:${pad(gm7.getMinutes(), 2)}:${pad(gm7.getSeconds(), 2)}.${pad(gm7.getMilliseconds(), 3)}`;
+            }
+
+            let No = sendPost("Issue", { type_submit: "issueGenID" });
+            
+            // Fix: Get the select elements properly
+            let tujuanSelect = document.getElementById("floatingSelect1");
+            let kategoriSelect = document.getElementById("floatingSelect2");
+            let jenisSelect = document.getElementById("floatingSelect3");
+            let aplikasiSelect = document.getElementById("floatingSelect4");
+            let takePegawaiSelect = document.getElementById("takePegawai");
+            
+            // Get text values for tujuan and kategori (not the option values)
+            let tujuan = tujuanSelect?.options[tujuanSelect.selectedIndex]?.text || "";
+            let kategori = kategoriSelect?.options[kategoriSelect.selectedIndex]?.text || "";
+            
+            // Get integer values for Jenis and Aplikasi
+            let jenisLaporan = parseInt(jenisSelect?.value) || 0;
+            let program = parseInt(aplikasiSelect?.value) || 0;
+            
+            // Get other form data
+            let dari = takePegawaiSelect?.value || "";
+            let deskripsi = document.querySelector("textarea")?.value || "";
+            let inputFiles = document.getElementById("inputGroupFile03").files;
+
+            // Validation - check required fields
+            if (!dari || !tujuan || !kategori || !jenisLaporan || !deskripsi.trim()) {
+                alert("Semua field wajib diisi.");
+                console.log("Validation failed:", {
+                    dari: dari,
+                    tujuan: tujuan,
+                    kategori: kategori,
+                    jenisLaporan: jenisLaporan,
+                    deskripsi: deskripsi
+                });
+                return;
+            }
+            if (kategoriSelect?.value === "1" && !program) {
+                alert("Program yang dimaksud wajib dipilih untuk kategori Software.");
+                return;
+            }
+
+            // Prepare data object
+            let data = {
+                No: No,
+                prioritas: prioritas,
+                Tanggal: window.rawTimestamp || new Date().toISOString(),
+                dari: dari,
+                tujuan: tujuan,           
+                kategori: kategori,       
+                Jenis: jenisLaporan,      
+                Aplikasi: program,        
+                issue: deskripsi,
+                accPATA: accPATA,
+                AcceptWork: "",
+                Rating: 0
+            };
+
+            if (TanggalKonfirmasi) {
+                data.TanggalKonfirmasi = TanggalKonfirmasi;
+            }
+
+            console.log("Submitting data:", data);
+
+            // Submit the form
+            let response = await submitPost("Issue", "createHD", "helpdeskForm", data);
+            
+            console.log("Response:", response);
+
+            if (response.status === "success") {
+                showToast(true, "Issue berhasil dikirim");
+                clearForm(); // Clear form after successful submission
+            } else {
+                console.error("Gagal:", response);
+                showToast(false, "Gagal mengirim issue: " + (response.message || "Unknown error"));
+            }
+
+        } catch (error) {
+            console.error("🚨 Unexpected Error:", error);
+            showToast(false, "Terjadi kesalahan: " + error.message);
+        }
+    });
+
+    // Enhanced validation function
+    function validateForm() {
+        const tujuanSelect = document.getElementById("floatingSelect1");
+        const kategoriSelect = document.getElementById("floatingSelect2");
+        const jenisSelect = document.getElementById("floatingSelect3");
+        const aplikasiSelect = document.getElementById("floatingSelect4");
+        const takePegawaiSelect = document.getElementById("takePegawai");
+        const deskripsi = document.querySelector("textarea");
+
+        let isValid = true;
+        let errorMessages = [];
+
+        // Check required fields
+        if (!takePegawaiSelect?.value) {
+            errorMessages.push("Dari harus dipilih");
+            isValid = false;
+        }
+
+        if (!tujuanSelect?.value) {
+            errorMessages.push("Tujuan Helpdesk harus dipilih");
+            isValid = false;
+        }
+
+        if (!kategoriSelect?.value) {
+            errorMessages.push("Kategori harus dipilih");
+            isValid = false;
+        }
+
+        if (!jenisSelect?.value) {
+            errorMessages.push("Jenis Laporan harus dipilih");
+            isValid = false;
+        }
+
+        if (kategoriSelect?.value === "1" && !aplikasiSelect?.value) {
+            errorMessages.push("Program yang dimaksud harus dipilih untuk kategori Software");
+            isValid = false;
+        }
+
+        if (!deskripsi?.value?.trim()) {
+            errorMessages.push("Deskripsi harus diisi");
+            isValid = false;
+        }
+
+        if (!isValid) {
+            alert("Validation errors:\n" + errorMessages.join("\n"));
+        }
+
+        return isValid;
+    }
+
+    function showToast(isSuccess) {
+        const toast = document.getElementById("toast");
+        if (isSuccess) {
+            toast.innerText = "✅ Sukses, issue telah ditambahkan.";
+            toast.className = "toast success";
+        } else {
+            toast.innerText = "❌ Gagal, issue tidak berhasil ditambahkan.";
+            toast.className = "toast error";
+        }
+
+        toast.style.display = "block";
+
+        setTimeout(() => {
+            toast.style.display = "none";
+        }, 3000);
+    }
+
+    // async function submitPost(action, method, formId, formData) {
+    //     return new Promise((resolve) => {
+    //         setTimeout(() => {
+    //             resolve({
+    //                 status: Math.random() > 0.2 ? "success" : "error", 
+    //                 st_gmbr: [{ status: "success" }]
+    //             });
+    //         }, 1000);
+    //     });
+    // }
+
+    selectedFiles = [];
+
+    function handleFiles(input) {
+        const dropzone = document.getElementById("dropzone");
+        const dropzoneText = document.getElementById("dropzone-text");
+        if (dropzoneText) dropzoneText.style.display = "none";
+        selectedFiles = []; 
+
+        let newFiles = Array.from(input.files);
+
+        newFiles.forEach(file => {
+            if (file.type.startsWith("image/")) {
+                selectedFiles.push(file);
+            } else {
+                alert(`File "${file.name}" tidak didukung. Hanya file gambar yang diperbolehkan.`);
+            }
+        });
+
+        updateFileInput(input);
+        console.log("Files uploaded:", selectedFiles);
+
+        renderDropzone(input);
+    }
+
+    function renderDropzone(input) {
+        const dropzone = document.getElementById("dropzone");
+        dropzone.innerHTML = "";
+
+        selectedFiles.forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const imageContainer = document.createElement("div");
+                imageContainer.classList.add("image-container");
+                imageContainer.setAttribute("data-index", index);
+
+                const img = document.createElement("img");
+                img.src = e.target.result;
+
+                const info = document.createElement("div");
+                info.classList.add("image-info");
+                info.textContent = `${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+
+                const deleteBtn = document.createElement("button");
+                deleteBtn.classList.add("delete-btn");
+                deleteBtn.textContent = "✖";
+                deleteBtn.onclick = function () {
+                    const fileIndex = parseInt(imageContainer.getAttribute("data-index"));
+                    selectedFiles.splice(fileIndex, 1);
+                    updateFileInput(input);
+                    renderDropzone(input);
+                    console.log("Updated file list after deletion:", selectedFiles);
+
+                    if (selectedFiles.length === 0 && dropzoneText) {
+                        dropzoneText.style.display = "block";
+                    }
+                };
+
+                imageContainer.appendChild(img);
+                imageContainer.appendChild(info);
+                imageContainer.appendChild(deleteBtn);
+                dropzone.appendChild(imageContainer);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function updateFileInput(input) {
+        const dataTransfer = new DataTransfer();
+        selectedFiles.forEach(file => dataTransfer.items.add(file));
+        input.files = dataTransfer.files;
+    }
+
+    function clearForm() {
+        const idsToClear = [
+            "takePegawai",
+            "floatingSelect1",
+            "floatingSelect2",
+            "floatingSelect3",
+            "floatingSelect4",
+            "inputGroupFile03"
+        ];
+
+        idsToClear.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = "";
+        });
+
+        const textarea = document.querySelector("textarea");
+        if (textarea) textarea.value = "";
+
+        const dropzoneText = document.getElementById("dropzone-text");
+        if (dropzoneText) dropzoneText.innerText = "Drag and drop images here";
+
+        const errorMessage = document.getElementById("error-message");
+        if (errorMessage) errorMessage.style.display = "none";
+
+        const selectsToDisable = ["floatingSelect2", "floatingSelect3", "floatingSelect4"];
+        selectsToDisable.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = true;
+        });
+
+        const programDiv = document.getElementById("programSelectDiv");
+        if (programDiv) programDiv.style.display = "none";
+    }
+</script>
+
+

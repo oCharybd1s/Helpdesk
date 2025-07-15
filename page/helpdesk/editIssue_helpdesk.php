@@ -60,7 +60,7 @@
                 </div>
             </div>
             <div id="estimation-phase" class="work-phase" style="display: none;">
-                <div class="mid-6" style="font-size:16px; flex: 1; padding-right: 10px;">
+                <div class="mid-6" style="font-size:16px; flex: 1; padding-left : 24px;">
                     <label for="estimasi-minutes"><strong>Estimasi Pengerjaan (Menit):</strong></label>
                     <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
                         <input type="number" id="estimasi-minutes" placeholder="Masukkan estimasi dalam menit" min="1" max="9999" required
@@ -91,10 +91,10 @@
                             <strong>Estimasi:</strong> <span id="estimated-time">0</span> menit
                         </div>
                         <div>
-                            <strong>Waktu Berjalan:</strong> <span id="elapsed-time">0</span> menit
+                            <strong>Waktu Berjalan:</strong> <span id="elapsed-time">0</span> 
                         </div>
                         <div>
-                            <strong>Sisa Waktu:</strong> <span id="remaining-time">0</span> menit
+                            <strong>Sisa Waktu:</strong> <span id="remaining-time">0</span> 
                         </div>
                     </div>
                     
@@ -167,15 +167,23 @@
             </div>
             <div class="row" style="margin-left: 15px; margin-bottom: 4px; display: flex; justify-content: space-between;">
                 <div class="mid-6" style="font-size:16px; flex: 1; padding-right: 10px;">
-                <div style="display: flex; flex-direction: column; align-items: flex-start;">
-                    <label style="color: #00a652;"><b>Upload Gambar:</b></label>
-                    <div class="input-group">
-                        <input name="file" type="file" class="form-control" id="inputGroupFile03" required accept="image/*" onchange="validateImage()" style="background-color:#eff0e9;height:250px;margin-bottom:10px; place-items:center; border: 1px solid #d8d8dd;">
+                    <!-- Upload Gambar -->
+                    <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                        <label style="color: #00a652;"><b>Upload Gambar:</b></label>
+                        <div class="input-group">
+                        <input name="file[]" type="file" class="form-control" id="inputGroupFile03" accept="image/*" multiple 
+                            onchange="handleFiles(this);" 
+                            style="background-color:#eff0e9;margin-bottom:10px; place-items:center; border: 1px solid #d8d8dd;">
+                        </div>
+                        
+                        <div id="dropzone">
+                            <span id="dropzone-text">Drag and drop images here</span>
+                        </div>
                     </div>
-                </div>
-                <div id="error-message" style="color: red; display: none;">
-                    <p>Hanya menerima gambar. Ekstensi yang diperbolehkan: .jpg, .jpeg, .png, .gif</p>
-                </div>
+
+                    <div id="error-message" style="color: red; display: none;">
+                        <p>Hanya menerima gambar. Ekstensi yang diperbolehkan: .jpg, .jpeg, .png, .gif</p>
+                    </div>
                 </div>
                 <div class="mid-6" style="font-size:16px; flex: 1; padding-left: 10px;">
                     <div>
@@ -329,6 +337,34 @@
 
     button:active {
         transform: scale(0.95);
+    }
+
+    #dropzone {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        border: 2px dashed #00a652;
+        padding: 20px;
+        width: 100%;
+        min-height: 200px;
+        height: auto;
+        align-items: center;
+        justify-content: center;
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        transition: all 0.3s ease-in-out;
+    }
+
+    #dropzone:hover {
+        background-color: #e9f7ef;
+        border-color: #007f4e;
+    }
+
+    #dropzone-text {
+        color: #888;
+        font-size: 16px;
+        font-weight: bold;
+        text-align: center;
     }
 
 </style>
@@ -662,47 +698,59 @@ function updateTimer() {
         return;
     }
 
-    const endTime = new Date(window.startTime.getTime() + window.estimatedMinutes * 60000);
     const now = new Date();
-    const diffMs = endTime - now;
+    const endTime = new Date(window.startTime.getTime() + window.estimatedMinutes * 60000);
 
+    // Hitung sisa waktu
+    const diffMs = endTime - now;
     const isOvertime = diffMs < 0;
     const absMs = Math.abs(diffMs);
-    const hours = Math.floor(absMs / 3600000);
-    const minutes = Math.floor((absMs % 3600000) / 60000);
-    const seconds = Math.floor((absMs % 60000) / 1000);
+    const diffHours = Math.floor(absMs / 3600000);
+    const diffMinutes = Math.floor((absMs % 3600000) / 60000);
+    const diffSeconds = Math.floor((absMs % 60000) / 1000);
 
-    const formatted = `${isOvertime ? '-' : ''}${hours.toString().padStart(2, '0')}:` +
-                      `${minutes.toString().padStart(2, '0')}:` +
-                      `${seconds.toString().padStart(2, '0')}`;
+    const formattedRemaining = `${isOvertime ? '-' : ''}${diffHours.toString().padStart(2, '0')}:` +
+                               `${diffMinutes.toString().padStart(2, '0')}:` +
+                               `${diffSeconds.toString().padStart(2, '0')}`;
 
     const remainingTimeElement = document.getElementById('remaining-time');
     if (remainingTimeElement) {
-        remainingTimeElement.textContent = formatted;
+        remainingTimeElement.textContent = formattedRemaining;
     }
 
+    // Hitung waktu berjalan (elapsed)
     const elapsedMs = now - window.startTime;
-    const elapsedMinutes = Math.floor(elapsedMs / 60000);
+    const elapsedHours = Math.floor(elapsedMs / 3600000);
+    const elapsedMinutes = Math.floor((elapsedMs % 3600000) / 60000);
     const elapsedSeconds = Math.floor((elapsedMs % 60000) / 1000);
+
+    const formattedElapsed = `${elapsedHours.toString().padStart(2, '0')}:` +
+                             `${elapsedMinutes.toString().padStart(2, '0')}:` +
+                             `${elapsedSeconds.toString().padStart(2, '0')}`;
+
     const elapsedTimeElement = document.getElementById('elapsed-time');
     if (elapsedTimeElement) {
-        elapsedTimeElement.textContent = `${elapsedMinutes}:${elapsedSeconds.toString().padStart(2, '0')}`;
+        elapsedTimeElement.textContent = formattedElapsed;
     }
 
-    const progressPercent = Math.min(100, (elapsedMinutes / window.estimatedMinutes) * 100);
+    // Update progress bar
+    const elapsedTotalMinutes = Math.floor(elapsedMs / 60000);
+    const progressPercent = Math.min(100, (elapsedTotalMinutes / window.estimatedMinutes) * 100);
+
     const progressBar = document.getElementById('progress-bar');
     if (progressBar) {
         progressBar.style.width = progressPercent + '%';
     }
 
+    // Update status
     const statusElement = document.getElementById('work-status');
     if (statusElement && progressBar) {
-        if (elapsedMinutes < window.estimatedMinutes * 0.8) {
+        if (elapsedTotalMinutes < window.estimatedMinutes * 0.8) {
             statusElement.textContent = 'ON TIME';
             statusElement.style.backgroundColor = '#28a745';
             statusElement.style.color = 'white';
             progressBar.style.backgroundColor = '#28a745';
-        } else if (elapsedMinutes < window.estimatedMinutes) {
+        } else if (elapsedTotalMinutes < window.estimatedMinutes) {
             statusElement.textContent = 'PAUSE';
             statusElement.style.backgroundColor = '#ffc107';
             statusElement.style.color = 'black';
@@ -718,9 +766,10 @@ function updateTimer() {
 
 function selesaikanIssue() {
     console.log('selesaikanIssue function called');
-    
+    console.log(window.issueId)
     const solusi = document.getElementById('solusi-area').value.trim();
     const catatan = document.getElementById('catatan-it-area').value.trim();
+    
     
     if (!solusi) {
         alert('Mohon isi solusi yang diterapkan!');
@@ -746,7 +795,7 @@ function selesaikanIssue() {
     });
     
     console.log('Response from selesaikanIssue:', response);
-    
+
     if (response && response.status === 'success') {
         alert('✅ Pekerjaan berhasil diselesaikan!');
         
@@ -781,70 +830,72 @@ function selesaikanIssue() {
 }
 
 function displayCompletionDetails() {
-    console.log('Displaying completion details for finished issue');
-    
-    if (!window.issueWorkflowData) {
-        console.error('No issue data available for completion details');
+    console.log('Fetching completion details...');
+    const dataComp = sendPost("Issue", {
+        type_submit: "getComplete",
+        id_Issue: window.id_Issue
+    });
+
+    const data = dataComp?.data?.[0];
+    if (!data) {
+        console.error('No issue data available from server');
         return;
     }
-    
-    // Handle different datetime formats for AcceptWork and TanggalSelesai
-    let startTimeObj, finishTimeObj;
-    
-    // Parse AcceptWork
-    if (window.issueWorkflowData.AcceptWork) {
-        if (window.issueWorkflowData.AcceptWork.date) {
-            startTimeObj = new Date(window.issueWorkflowData.AcceptWork.date);
-        } else {
-            startTimeObj = new Date(window.issueWorkflowData.AcceptWork);
-        }
+
+    // Parse datetime
+    const startStr = data?.AcceptWork?.date || null;
+    const finishStr = data?.TanggalSelesai?.date || null;
+
+    const startTimeObj = startStr ? new Date(startStr.replace(' ', 'T')) : null;
+    const finishTimeObj = finishStr ? new Date(finishStr.replace(' ', 'T')) : null;
+
+    // Estimasi dan Aktual
+    const estimatedMin = parseInt(data?.EstIT || 0);
+    let actualMin = parseInt(data?.AktualMenit || 0);
+
+    if ((!actualMin || isNaN(actualMin)) && startTimeObj && finishTimeObj) {
+        const diffMs = finishTimeObj - startTimeObj;
+        actualMin = Math.round(diffMs / 60000);
     }
-    
-    // Parse TanggalSelesai
-    if (window.issueWorkflowData.TanggalSelesai) {
-        if (window.issueWorkflowData.TanggalSelesai.date) {
-            finishTimeObj = new Date(window.issueWorkflowData.TanggalSelesai.date);
-        } else {
-            finishTimeObj = new Date(window.issueWorkflowData.TanggalSelesai);
-        }
-    }
-    
-    const estimatedMin = parseInt(window.issueWorkflowData.EstimasiMenit) || 0;
-    const actualMin = parseInt(window.issueWorkflowData.AktualMenit) || 0;
-    
+
     console.log('Completion data:', {
         startTime: startTimeObj,
         finishTime: finishTimeObj,
         estimated: estimatedMin,
         actual: actualMin
     });
-    
-    // Update display elements with null checks
+
+    // Display waktu mulai dan selesai
     const startTimeDisplay = document.getElementById('start-time-display');
     if (startTimeDisplay && startTimeObj) {
         startTimeDisplay.textContent = formatDateTime(startTimeObj);
     }
-    
+
     const finishTimeDisplay = document.getElementById('finish-time-display');
     if (finishTimeDisplay && finishTimeObj) {
         finishTimeDisplay.textContent = formatDateTime(finishTimeObj);
     }
-    
+
+    // Display estimasi dan aktual
     const finalEstimatedTime = document.getElementById('final-estimated-time');
     if (finalEstimatedTime) {
         finalEstimatedTime.textContent = estimatedMin || '-';
     }
-    
+
     const actualTimeDisplay = document.getElementById('actual-time-display');
     if (actualTimeDisplay) {
         actualTimeDisplay.textContent = actualMin || '-';
     }
-    
-    // Determine completion status
-    let status, statusColor;
+
+    // Status penyelesaian
+    const statusElement = document.getElementById('completion-status');
+    const diffElement = document.getElementById('time-difference');
+    let status = '✅ Selesai';
+    let statusColor = '#28a745';
+
     if (actualMin > 0 && estimatedMin > 0) {
         const difference = actualMin - estimatedMin;
-        
+
         if (actualMin <= estimatedMin) {
             status = '🎯 Tepat Waktu';
             statusColor = '#28a745';
@@ -855,9 +906,7 @@ function displayCompletionDetails() {
             status = '🚨 Terlambat';
             statusColor = '#dc3545';
         }
-        
-        // Time difference
-        const diffElement = document.getElementById('time-difference');
+
         if (diffElement) {
             if (difference > 0) {
                 diffElement.textContent = `+${difference} menit (terlambat)`;
@@ -871,33 +920,71 @@ function displayCompletionDetails() {
             }
         }
     } else {
-        status = '✅ Selesai';
-        statusColor = '#28a745';
-        
-        const diffElement = document.getElementById('time-difference');
         if (diffElement) {
             diffElement.textContent = 'Data waktu tidak tersedia';
             diffElement.style.color = '#6c757d';
         }
     }
-    
-    const statusElement = document.getElementById('completion-status');
+
     if (statusElement) {
         statusElement.textContent = status;
         statusElement.style.color = statusColor;
         statusElement.style.fontWeight = 'bold';
     }
-    
-    // Solution and notes
+
+    // Pisahkan Solusi dan Catatan IT
+    const fullSolusiText = data?.Solusi || '';
+    let solusiContent = '';
+    let catatanContent = '';
+
+    const solusiMatch = fullSolusiText.match(/Solusi\s*:\s*(.*?)(?:\s*Catatan IT\s*:|$)/is);
+    const catatanMatch = fullSolusiText.match(/Catatan IT\s*:\s*(.*)/is);
+
+    if (solusiMatch) {
+        solusiContent = solusiMatch[1].trim();
+    } else {
+        solusiContent = fullSolusiText.trim();
+    }
+
+    if (catatanMatch) {
+        catatanContent = catatanMatch[1].trim();
+    }
+
+    // Tampilkan ke elemen HTML
     const finalSolusi = document.getElementById('final-solusi');
     if (finalSolusi) {
-        finalSolusi.textContent = window.issueWorkflowData.Solusi || 'Tidak ada solusi yang dicatat';
+        finalSolusi.textContent = solusiContent || 'Tidak ada solusi yang dicatat';
     }
-    
+
     const finalCatatan = document.getElementById('final-catatan');
     if (finalCatatan) {
-        finalCatatan.textContent = window.issueWorkflowData.CatatanIT || 'Tidak ada catatan IT';
+        finalCatatan.textContent = catatanContent || 'Tidak ada catatan IT';
     }
+}
+
+function formatDateTime(date) {
+    if (!date || isNaN(date)) return '-';
+
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+
+    return `${day}-${month}-${year} ${hours}:${minutes}`;
+}
+
+
+function formatDateTime(date) {
+    if (!date || isNaN(date)) return '-';
+    
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    
+    return `${day}-${month}-${year} ${hours}:${minutes}`;
 }
 
 function formatDateTime(date) {
@@ -997,6 +1084,120 @@ function loadChatHistory() {
         });
     }
 }
+
+selectedFiles = [];
+
+    function handleFiles(input) {
+        const dropzone = document.getElementById("dropzone");
+        const dropzoneText = document.getElementById("dropzone-text");
+        if (dropzoneText) dropzoneText.style.display = "none";
+        selectedFiles = []; 
+
+        let newFiles = Array.from(input.files);
+
+        newFiles.forEach(file => {
+            if (file.type.startsWith("image/")) {
+                selectedFiles.push(file);
+            } else {
+                alert(`File "${file.name}" tidak didukung. Hanya file gambar yang diperbolehkan.`);
+            }
+        });
+
+        updateFileInput(input);
+        console.log("Files uploaded:", selectedFiles);
+
+        renderDropzone(input);
+    }
+
+    function renderDropzone(input) {
+        const dropzone = document.getElementById("dropzone");
+        dropzone.innerHTML = "";
+
+        selectedFiles.forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const imageContainer = document.createElement("div");
+                imageContainer.classList.add("image-container");
+                imageContainer.setAttribute("data-index", index);
+
+                const img = document.createElement("img");
+                img.src = e.target.result;
+
+                const info = document.createElement("div");
+                info.classList.add("image-info");
+                info.textContent = `${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+
+                const deleteBtn = document.createElement("button");
+                deleteBtn.classList.add("delete-btn");
+                deleteBtn.textContent = "✖";
+                deleteBtn.onclick = function () {
+                    const fileIndex = parseInt(imageContainer.getAttribute("data-index"));
+                    selectedFiles.splice(fileIndex, 1);
+                    updateFileInput(input);
+                    renderDropzone(input);
+                    console.log("Updated file list after deletion:", selectedFiles);
+
+                    if (selectedFiles.length === 0 && dropzoneText) {
+                        dropzoneText.style.display = "block";
+                    }
+                };
+
+                imageContainer.appendChild(img);
+                imageContainer.appendChild(info);
+                imageContainer.appendChild(deleteBtn);
+                dropzone.appendChild(imageContainer);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function updateFileInput(input) {
+        const dataTransfer = new DataTransfer();
+        selectedFiles.forEach(file => dataTransfer.items.add(file));
+        input.files = dataTransfer.files;
+    }
+
+    function loadIssueImages(issueNo) {
+        const imageContainer = document.getElementById("existing-images");
+        imageContainer.innerHTML = "🔄 Loading...";
+
+        sendPost("Issue", {
+            type_submit: "getIssueImages",
+            No: issueNo
+        }).then(response => {
+            if (response.status === 'success') {
+                const basePath = '/upload/'; // sesuaikan path folder upload
+                imageContainer.innerHTML = '';
+
+                if (response.data.length === 0) {
+                    imageContainer.innerHTML = '<p>Tidak ada gambar yang diunggah.</p>';
+                    return;
+                }
+
+                response.data.forEach(img => {
+                    const div = document.createElement("div");
+                    div.classList.add("image-container");
+
+                    const image = document.createElement("img");
+                    image.src = basePath + img.NamaFile;
+                    image.alt = img.NamaFile;
+
+                    const caption = document.createElement("div");
+                    caption.classList.add("image-info");
+                    caption.textContent = img.NamaFile;
+
+                    div.appendChild(image);
+                    div.appendChild(caption);
+                    imageContainer.appendChild(div);
+                });
+            } else {
+                imageContainer.innerHTML = '<p>❌ Gagal memuat gambar.</p>';
+            }
+        }).catch(err => {
+            console.error("Error loading images:", err);
+            imageContainer.innerHTML = '<p>❌ Error saat mengambil gambar.</p>';
+        });
+    }
 
 // Initialize everything after DOM is ready
 console.log('Script loaded, initializing workflow...');

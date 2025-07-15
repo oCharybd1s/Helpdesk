@@ -428,6 +428,56 @@
         </div>
     </div>
 
+    <div id="working-phase" class="work-phase">
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 10px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h4 style="margin: 0; color: #495057;">🔧 Sedang Mengerjakan</h4>
+                <div id="work-status" style="padding: 5px 15px; border-radius: 20px; font-weight: bold; font-size: 12px;">
+                    ON TIME
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 30px; align-items: center; margin-bottom: 15px;">
+                <div>
+                    <strong>Estimasi:</strong> <span id="estimated-time">0</span> menit
+                </div>
+                <div>
+                    <strong>Waktu Berjalan:</strong> <span id="elapsed-time">0</span> 
+                </div>
+                <div>
+                    <strong>Sisa Waktu:</strong> <span id="remaining-time">0</span> 
+                </div>
+            </div>
+            
+            <div style="background: #e9ecef; border-radius: 10px; height: 8px; margin-bottom: 15px;">
+                <div id="progress-bar" style="background: #28a745; height: 100%; border-radius: 10px; width: 0%; transition: all 0.5s ease;"></div>
+            </div>
+            
+            <div style="display: flex; gap: 20px;">
+                <div style="flex: 1;">
+                    <label for="solusi-area"><strong>Solusi:</strong></label>
+                    <textarea id="solusi-area" placeholder="Deskripsikan solusi yang diterapkan..." 
+                            style="width: 100%; min-height: 100px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; resize: vertical;"></textarea>
+                </div>
+                <div style="flex: 1;">
+                    <label for="catatan-it-area"><strong>Catatan IT:</strong></label>
+                    <textarea id="catatan-it-area" placeholder="Catatan tambahan untuk internal IT..." 
+                            style="width: 100%; min-height: 100px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; resize: vertical;"></textarea>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 20px;">
+                <button type="button" id="finish-btn" onclick="selesaikanIssue()" 
+                        style="padding: 12px 30px; border: none; border-radius: 5px; background-color: #dc3545; color: white; 
+                            font-size: 16px; cursor: pointer; transition: background-color 0.3s ease;"
+                        onmouseover="this.style.backgroundColor='#c82333'" 
+                        onmouseout="this.style.backgroundColor='#dc3545'">
+                    🏁 Selesaikan Pekerjaan
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Statistics Overview -->
     <div class="card">
         <div class="card-body">
@@ -503,11 +553,11 @@
                 ticketList.appendChild(ticketItem);
             });
         }
-        // UPDATED DASHBOARD JAVASCRIPT - Replace the existing functions with these fixed versions
 
         async function loadNotifications() {
             try {
-                const notifications = await sendPost("Issue", { type_submit: "getNotif" });
+                const id = session_login?.login?.emp_no;
+                const notifications = await sendPost("Issue", { type_submit: "getNotif", id: $id});
                 console.log("📥 Notifikasi Diterima:", notifications);
                 const container = document.getElementById('notification-container');
                 container.innerHTML = '';
@@ -536,17 +586,13 @@
                         </div>
                     `;
 
-                    // FIX 1: Enhanced click handler for dashboard notification boxes
                     notificationItem.addEventListener('click', async () => {
                         try {
-                            // Mark this specific notification as read first
                             await markNotificationAsRead(notification.NoIssue, notification.NoCom);
                             
-                            // Then open the issue
                             openIssue(notification.NoIssue, notification.NoCom);
                         } catch (error) {
                             console.error("❌ Error handling notification click:", error);
-                            // Still open the issue even if marking as read fails
                             openIssue(notification.NoIssue, notification.NoCom);
                         }
                     });
@@ -560,15 +606,12 @@
         }
 
         loadNotifications();
-
-        // FIX 2: Enhanced markAllRead function with proper error handling
         async function markAllRead() {
             try {
                 const response = await sendPost("Issue", { type_submit: "markAllNotifRead" });
 
                 if (response.status === 'success') {
                     showToast('All notifications marked as read!');
-                    // Refresh notifications to update UI
                     loadNotifications(); 
                 } else {
                     showToast('Failed to mark notifications as read: ' + (response.message || 'Unknown error'));
@@ -601,16 +644,16 @@
             }
         }
 
-        // FIX 4: Enhanced openIssue function
         async function openIssue(noIssue, noCom) {
             try {
-                // Mark notification as read before opening
                 if (noCom) {
                     await sendPost("Issue", {
                         type_submit: "markNotifReadByNoCom",
                         NoCom: noCom
                     });
                 }
+                
+                // Navigate to the issue page
                 page.view('helpdesk/editIssue_helpdesk', '', { id_Issue: noIssue });
                 
                 console.log("✅ Issue opened:", noIssue);
@@ -694,7 +737,216 @@
             const tahun = date.getFullYear();
             return `${jam}:${menit} ${hari}/${bulan}/${tahun}`;
         }
+
+        function checkITProgress() {
+            const ditangani = '000830';
+            try {
+                const result = sendPost("Issue", {
+                    type_submit: "checkKerjaan",
+                    ditangani: ditangani
+                });
+
+                if (result.status === 'success') {
+                    if (result.data && result.data.length > 0) {
+                        const issueNumber = result.data[0].No; 
+                        console.log("Nomor Issue:", issueNumber);
+                        return issueNumber;
+                    } else {
+                        console.log("Tidak ada issue aktif dalam data.");
+                        return null;
+                    }
+                } else {
+                    console.log("Status tidak success:", result.status);
+                    return null;
+                }
+            } catch (err) {
+                console.error("Gagal memeriksa progress:", err);
+                return null;
+            }
+        }
         
+        startWorkTimer()
+        function startWorkTimer() {
+            console.log('Fetching start time and estimated minutes from backend...');
+            idIssue = checkITProgress();
+
+            const timerInfo = sendPost("Issue", { type_submit: "getTimerInfo", id_Issue: idIssue});
+            console.log(timerInfo);
+
+            if (!timerInfo || !timerInfo.data) {
+                console.error("Timer info not received from server");
+                return;
+            }
+
+            // Safely extract AcceptWork (date-time string)
+            let rawTimeStr = '';
+            if (typeof timerInfo.data.AcceptWork === 'object' && timerInfo.data.AcceptWork.date) {
+                rawTimeStr = timerInfo.data.AcceptWork.date;
+            } else if (typeof timerInfo.data.AcceptWork === 'string') {
+                rawTimeStr = timerInfo.data.AcceptWork;
+            } else {
+                console.error("Invalid AcceptWork format:", timerInfo.data.AcceptWork);
+                return;
+            }
+
+            // Convert to Date object
+            const formattedTime = rawTimeStr.replace(' ', 'T');
+            window.startTime = new Date(formattedTime);
+
+            // Parse estimated minutes
+            window.estimatedMinutes = parseInt(timerInfo.data.EstIT) || 0;
+
+            console.log('Starting work timer with:', {
+                startTime: window.startTime,
+                estimatedMinutes: window.estimatedMinutes
+            });
+
+            if (!window.estimatedMinutes || window.estimatedMinutes <= 0) {
+                console.error('Estimated minutes is invalid:', window.estimatedMinutes);
+                return;
+            }
+
+            const estimatedTimeElement = document.getElementById('estimated-time');
+            if (estimatedTimeElement) {
+                estimatedTimeElement.textContent = window.estimatedMinutes;
+            }
+
+            if (window.workTimer) {
+                clearInterval(window.workTimer);
+            }
+
+            window.workTimer = setInterval(updateTimer, 1000);
+            updateTimer();
+        }
+
+        function updateTimer() {
+            if (!window.startTime || !window.estimatedMinutes) {
+                console.error('Missing start time or estimated minutes');
+                return;
+            }
+
+            const now = new Date();
+            const endTime = new Date(window.startTime.getTime() + window.estimatedMinutes * 60000);
+
+            // Hitung sisa waktu
+            const diffMs = endTime - now;
+            const isOvertime = diffMs < 0;
+            const absMs = Math.abs(diffMs);
+            const diffHours = Math.floor(absMs / 3600000);
+            const diffMinutes = Math.floor((absMs % 3600000) / 60000);
+            const diffSeconds = Math.floor((absMs % 60000) / 1000);
+
+            const formattedRemaining = `${isOvertime ? '-' : ''}${diffHours.toString().padStart(2, '0')}:` +
+                                    `${diffMinutes.toString().padStart(2, '0')}:` +
+                                    `${diffSeconds.toString().padStart(2, '0')}`;
+
+            const remainingTimeElement = document.getElementById('remaining-time');
+            if (remainingTimeElement) {
+                remainingTimeElement.textContent = formattedRemaining;
+            }
+
+            // Hitung waktu berjalan (elapsed)
+            const elapsedMs = now - window.startTime;
+            const elapsedHours = Math.floor(elapsedMs / 3600000);
+            const elapsedMinutes = Math.floor((elapsedMs % 3600000) / 60000);
+            const elapsedSeconds = Math.floor((elapsedMs % 60000) / 1000);
+
+            const formattedElapsed = `${elapsedHours.toString().padStart(2, '0')}:` +
+                                    `${elapsedMinutes.toString().padStart(2, '0')}:` +
+                                    `${elapsedSeconds.toString().padStart(2, '0')}`;
+
+            const elapsedTimeElement = document.getElementById('elapsed-time');
+            if (elapsedTimeElement) {
+                elapsedTimeElement.textContent = formattedElapsed;
+            }
+
+            // Update progress bar
+            const elapsedTotalMinutes = Math.floor(elapsedMs / 60000);
+            const progressPercent = Math.min(100, (elapsedTotalMinutes / window.estimatedMinutes) * 100);
+
+            const progressBar = document.getElementById('progress-bar');
+            if (progressBar) {
+                progressBar.style.width = progressPercent + '%';
+            }
+
+            // Update status
+            const statusElement = document.getElementById('work-status');
+            if (statusElement && progressBar) {
+                if (elapsedTotalMinutes < window.estimatedMinutes * 0.8) {
+                    statusElement.textContent = 'ON TIME';
+                    statusElement.style.backgroundColor = '#28a745';
+                    statusElement.style.color = 'white';
+                    progressBar.style.backgroundColor = '#28a745';
+                } else if (elapsedTotalMinutes < window.estimatedMinutes) {
+                    statusElement.textContent = 'PAUSE';
+                    statusElement.style.backgroundColor = '#ffc107';
+                    statusElement.style.color = 'black';
+                    progressBar.style.backgroundColor = '#ffc107';
+                } else {
+                    statusElement.textContent = 'OVER TIME';
+                    statusElement.style.backgroundColor = '#dc3545';
+                    statusElement.style.color = 'white';
+                    progressBar.style.backgroundColor = '#dc3545';
+                }
+            }
+        }
+
+        function selesaikanIssue() {
+            const solusi = document.getElementById('solusi-area').value.trim();
+            const catatan = document.getElementById('catatan-it-area').value.trim();
+            
+            
+            if (!solusi) {
+                alert('Mohon isi solusi yang diterapkan!');
+                document.getElementById('solusi-area').focus();
+                return;
+            }
+            
+            if (!confirm('Apakah Anda yakin pekerjaan ini sudah selesai?')) {
+                return;
+            }
+            
+            const finishBtn = document.getElementById('finish-btn');
+            const originalText = finishBtn.textContent;
+            finishBtn.textContent = '⏳ Menyelesaikan...';
+            finishBtn.disabled = true;
+            
+            // Using traditional callback approach instead of .then()
+            const response = sendPost("Issue", {
+                type_submit: "selesaikanIssue",
+                No: window.issueId,
+                solusi: solusi,
+                catatan: catatan
+            });
+            
+            console.log('Response from selesaikanIssue:', response);
+
+            if (response && response.status === 'success') {
+                alert('✅ Pekerjaan berhasil diselesaikan!');
+                
+                // Stop timer
+                if (window.workTimer) {
+                    clearInterval(window.workTimer);
+                    window.workTimer = null;
+                    console.log('Work timer stopped');
+                }
+                
+                // Update issue data
+                if (window.issueWorkflowData) {
+                    window.issueWorkflowData.TanggalSelesai = response.data.TanggalSelesai;
+                    window.issueWorkflowData.Solusi = response.data.Solusi;
+                    window.issueWorkflowData.CatatanIT = response.data.CatatanIT;
+                    window.issueWorkflowData.AktualMenit = response.data.AktualMenit;
+                }
+                
+                console.log('Successfully completed issue and switched to completion phase');
+                startWorkTimer();
+                
+            } else {
+                alert('❌ Gagal menyelesaikan pekerjaan: ' + (response ? response.message : 'Unknown error'));
+            }
+        }
+
     </script>
 </body>
 </html>
