@@ -437,20 +437,47 @@
                 </div>
             </div>
             
+            <!-- Grid untuk 3 bagian: Issue No, Waktu Sisa (tengah), Waktu Pause (kanan) -->
+            <div style="display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 30px; align-items: center; margin-bottom: 15px;">
+                <!-- Issue Number (Kiri) -->
+                <div style="text-align: left;">
+                    <div style="font-size: 14px; color: #6c757d; margin-bottom: 5px;">Issue No:</div>
+                    <div id="current-issue-no" style="font-size: 20px; font-weight: bold; color: #007bff;">Belum Ada Issue</div>
+                </div>
+                
+                <!-- Waktu Sisa (Tengah) -->
+                <div style="text-align: center;">
+                    <div style="font-size: 14px; color: #6c757d; margin-bottom: 5px;">Waktu Sisa:</div>
+                    <div id="remaining-time" style="font-size: 32px; font-weight: bold; color: #28a745; font-family: 'Courier New', monospace;">00:00:00</div>
+                </div>
+                
+                <!-- Waktu Pause (Kanan) -->
+                <div style="text-align: right;">
+                    <div style="font-size: 14px; color: #6c757d; margin-bottom: 5px;">Total Pause:</div>
+                    <div id="total-pause-time" style="font-size: 20px; font-weight: bold; color: #ffc107; font-family: 'Courier New', monospace;">00:00</div>
+                </div>
+            </div>
+            
             <div style="display: flex; gap: 30px; align-items: center; margin-bottom: 15px;">
                 <div>
                     <strong>Estimasi:</strong> <span id="estimated-time">0</span> menit
-                </div>
-                <div>
-                    <strong>Waktu Berjalan:</strong> <span id="elapsed-time">0</span> 
-                </div>
-                <div>
-                    <strong>Sisa Waktu:</strong> <span id="remaining-time">0</span> 
                 </div>
             </div>
             
             <div style="background: #e9ecef; border-radius: 10px; height: 8px; margin-bottom: 15px;">
                 <div id="progress-bar" style="background: #28a745; height: 100%; border-radius: 10px; width: 0%; transition: all 0.5s ease;"></div>
+            </div>
+            
+            <!-- Tombol Pause/Resume -->
+            <div style="display: flex; gap: 15px; justify-content: center; margin-bottom: 15px;">
+                <button id="pause-btn" onclick="pauseWork()" 
+                        style="padding: 10px 20px; border: none; border-radius: 25px; background: linear-gradient(45deg, #ffc107, #fd7e14); color: white; font-weight: bold; cursor: pointer; display: none;">
+                    ⏸️ PAUSE
+                </button>
+                <button id="resume-btn" onclick="resumeWork()" 
+                        style="padding: 10px 20px; border: none; border-radius: 25px; background: linear-gradient(45deg, #28a745, #20c997); color: white; font-weight: bold; cursor: pointer; display: none;">
+                    ▶️ RESUME
+                </button>
             </div>
             
             <div style="display: flex; gap: 20px;">
@@ -556,8 +583,7 @@
 
         async function loadNotifications() {
             try {
-                const id = session_login?.login?.emp_no;
-                const notifications = await sendPost("Issue", { type_submit: "getNotif", id: $id});
+                const notifications = sendPost("Issue", { type_submit: "getNotif"});
                 console.log("📥 Notifikasi Diterima:", notifications);
                 const container = document.getElementById('notification-container');
                 container.innerHTML = '';
@@ -737,9 +763,10 @@
             const tahun = date.getFullYear();
             return `${jam}:${menit} ${hari}/${bulan}/${tahun}`;
         }
-
+        // Modifikasi fungsi checkITProgress yang sudah ada
         function checkITProgress() {
-            const ditangani = '000830';
+            const ditangani = "<?= $_SESSION[_session_app_id]['emp_no'] ?? '' ?>";
+            console.log('👤 emp_no dari PHP session:', ditangani);
             try {
                 const result = sendPost("Issue", {
                     type_submit: "checkKerjaan",
@@ -748,148 +775,305 @@
 
                 if (result.status === 'success') {
                     if (result.data && result.data.length > 0) {
-                        const issueNumber = result.data[0].No; 
-                        console.log("Nomor Issue:", issueNumber);
-                        return issueNumber;
+                        const issueData = result.data[0];
+                        // Update display issue number
+                        document.getElementById('current-issue-no').textContent = issueData.No;
+                        console.log("Issue sedang dikerjakan:", issueData.No);
+                        return issueData.No;
                     } else {
-                        console.log("Tidak ada issue aktif dalam data.");
+                        // Tidak ada issue yang dikerjakan
+                        document.getElementById('current-issue-no').textContent = "Belum Ada Issue";
+                        console.log("Tidak ada issue aktif");
                         return null;
                     }
                 } else {
+                    document.getElementById('current-issue-no').textContent = "Belum Ada Issue";
                     console.log("Status tidak success:", result.status);
                     return null;
                 }
             } catch (err) {
                 console.error("Gagal memeriksa progress:", err);
+                document.getElementById('current-issue-no').textContent = "Error";
                 return null;
             }
         }
-        
-        startWorkTimer()
+        startWorkTimer();
+        // Modifikasi fungsi startWorkTimer yang sudah ada
         function startWorkTimer() {
-            console.log('Fetching start time and estimated minutes from backend...');
-            idIssue = checkITProgress();
+            console.log('Memulai timer...');
+            const idIssue = checkITProgress();
+
+            if (!idIssue) {
+                // Sembunyikan working phase jika tidak ada issue
+                document.getElementById('working-phase').style.display = 'none';
+                return;
+            }
+
+            // Tampilkan working phase
+            document.getElementById('working-phase').style.display = 'block';
 
             const timerInfo = sendPost("Issue", { type_submit: "getTimerInfo", id_Issue: idIssue});
             console.log(timerInfo);
 
             if (!timerInfo || !timerInfo.data) {
-                console.error("Timer info not received from server");
+                console.error("Timer info tidak diterima dari server");
                 return;
             }
 
-            // Safely extract AcceptWork (date-time string)
+            // Parse start time
             let rawTimeStr = '';
             if (typeof timerInfo.data.AcceptWork === 'object' && timerInfo.data.AcceptWork.date) {
                 rawTimeStr = timerInfo.data.AcceptWork.date;
             } else if (typeof timerInfo.data.AcceptWork === 'string') {
                 rawTimeStr = timerInfo.data.AcceptWork;
             } else {
-                console.error("Invalid AcceptWork format:", timerInfo.data.AcceptWork);
+                console.error("Format AcceptWork tidak valid:", timerInfo.data.AcceptWork);
                 return;
             }
 
-            // Convert to Date object
             const formattedTime = rawTimeStr.replace(' ', 'T');
             window.startTime = new Date(formattedTime);
-
-            // Parse estimated minutes
             window.estimatedMinutes = parseInt(timerInfo.data.EstIT) || 0;
+            window.issueId = idIssue;
 
-            console.log('Starting work timer with:', {
+            // Load data pause dari MPause
+            loadPauseData();
+
+            console.log('Timer dimulai:', {
                 startTime: window.startTime,
-                estimatedMinutes: window.estimatedMinutes
+                estimatedMinutes: window.estimatedMinutes,
+                issueId: window.issueId
             });
 
             if (!window.estimatedMinutes || window.estimatedMinutes <= 0) {
-                console.error('Estimated minutes is invalid:', window.estimatedMinutes);
+                console.error('Estimasi menit tidak valid:', window.estimatedMinutes);
                 return;
             }
 
-            const estimatedTimeElement = document.getElementById('estimated-time');
-            if (estimatedTimeElement) {
-                estimatedTimeElement.textContent = window.estimatedMinutes;
-            }
+            // Update UI
+            document.getElementById('estimated-time').textContent = window.estimatedMinutes;
+            updatePauseButtons();
 
+            // Start timer
             if (window.workTimer) {
                 clearInterval(window.workTimer);
             }
-
             window.workTimer = setInterval(updateTimer, 1000);
             updateTimer();
         }
 
+        // Fungsi baru untuk load data pause dari MPause
+        function loadPauseData() {
+            if (!window.issueId) return;
+            
+            try {
+                const pauseData = sendPost("Issue", {
+                    type_submit: "getPauseData",
+                    No: window.issueId
+                });
+
+                if (pauseData && pauseData.status === 'success') {
+                    totalPauseMinutes = pauseData.totalPause || 0;
+                    isPaused = pauseData.isPaused || false;
+                    pauseStartTime = pauseData.currentPauseStart ? new Date(pauseData.currentPauseStart) : null;
+                    
+                    updatePauseButtons();
+                    updateTotalPauseDisplay();
+                }
+            } catch (error) {
+                console.error("Error loading pause data:", error);
+            }
+        }
+
         function updateTimer() {
             if (!window.startTime || !window.estimatedMinutes) {
-                console.error('Missing start time or estimated minutes');
                 return;
             }
 
             const now = new Date();
-            const endTime = new Date(window.startTime.getTime() + window.estimatedMinutes * 60000);
-
-            // Hitung sisa waktu
-            const diffMs = endTime - now;
-            const isOvertime = diffMs < 0;
-            const absMs = Math.abs(diffMs);
-            const diffHours = Math.floor(absMs / 3600000);
-            const diffMinutes = Math.floor((absMs % 3600000) / 60000);
-            const diffSeconds = Math.floor((absMs % 60000) / 1000);
-
-            const formattedRemaining = `${isOvertime ? '-' : ''}${diffHours.toString().padStart(2, '0')}:` +
-                                    `${diffMinutes.toString().padStart(2, '0')}:` +
-                                    `${diffSeconds.toString().padStart(2, '0')}`;
-
-            const remainingTimeElement = document.getElementById('remaining-time');
-            if (remainingTimeElement) {
-                remainingTimeElement.textContent = formattedRemaining;
+            
+            // Hitung elapsed time dalam detik (bukan menit)
+            const elapsedTotalSeconds = Math.floor((now.getTime() - window.startTime.getTime()) / 1000);
+            const elapsedTotalMinutes = Math.floor(elapsedTotalSeconds / 60);
+            
+            // Hitung current pause time jika sedang pause
+            let currentPauseSeconds = 0;
+            if (isPaused && pauseStartTime) {
+                currentPauseSeconds = Math.floor((now.getTime() - pauseStartTime.getTime()) / 1000);
             }
+            
+            // Total pause dalam detik
+            const totalPauseSeconds = (totalPauseMinutes || 0) * 60 + currentPauseSeconds;
+            
+            // Net working time dalam detik
+            const netWorkingSeconds = elapsedTotalSeconds - totalPauseSeconds;
+            const netWorkingMinutes = Math.floor(netWorkingSeconds / 60);
+            
+            // Remaining time dalam detik
+            const estimatedSeconds = window.estimatedMinutes * 60;
+            const remainingSeconds = estimatedSeconds - netWorkingSeconds;
 
-            // Hitung waktu berjalan (elapsed)
-            const elapsedMs = now - window.startTime;
-            const elapsedHours = Math.floor(elapsedMs / 3600000);
-            const elapsedMinutes = Math.floor((elapsedMs % 3600000) / 60000);
-            const elapsedSeconds = Math.floor((elapsedMs % 60000) / 1000);
+            // Update WAKTU SISA (format: HH:MM:SS)
+            updateRemainingTimeDisplay(remainingSeconds);
+            
+            // Update WAKTU PAUSE (format: MM:SS)
+            updateTotalPauseDisplay(totalPauseSeconds);
+            
+            // Update progress bar dan status
+            updateProgressBar(netWorkingMinutes);
+            updateWorkStatus(netWorkingMinutes, remainingSeconds / 60);
+        }
 
-            const formattedElapsed = `${elapsedHours.toString().padStart(2, '0')}:` +
-                                    `${elapsedMinutes.toString().padStart(2, '0')}:` +
-                                    `${elapsedSeconds.toString().padStart(2, '0')}`;
-
-            const elapsedTimeElement = document.getElementById('elapsed-time');
-            if (elapsedTimeElement) {
-                elapsedTimeElement.textContent = formattedElapsed;
+        function updateRemainingTimeDisplay(remainingSeconds) {
+            const isOvertime = remainingSeconds < 0;
+            const absSeconds = Math.abs(remainingSeconds);
+            
+            const hours = Math.floor(absSeconds / 3600);
+            const minutes = Math.floor((absSeconds % 3600) / 60);
+            const seconds = absSeconds % 60;
+            
+            const timeString = `${isOvertime ? '-' : ''}${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            const remainingElement = document.getElementById('remaining-time');
+            if (remainingElement) {
+                remainingElement.textContent = timeString;
+                remainingElement.style.color = isOvertime ? '#dc3545' : '#28a745';
             }
+        }
 
-            // Update progress bar
-            const elapsedTotalMinutes = Math.floor(elapsedMs / 60000);
-            const progressPercent = Math.min(100, (elapsedTotalMinutes / window.estimatedMinutes) * 100);
+        function updateTotalPauseDisplay(totalPauseSeconds) {
+            const minutes = Math.floor(totalPauseSeconds / 60);
+            const seconds = totalPauseSeconds % 60;
+            
+            const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            const pauseElement = document.getElementById('total-pause-time');
+            if (pauseElement) {
+                pauseElement.textContent = timeString;
+            }
+        }
 
+        function updateProgressBar(netWorkingMinutes) {
+            const progressPercent = Math.min(100, Math.max(0, (netWorkingMinutes / window.estimatedMinutes) * 100));
+            
             const progressBar = document.getElementById('progress-bar');
             if (progressBar) {
                 progressBar.style.width = progressPercent + '%';
             }
+        }
 
-            // Update status
+        function updateWorkStatus(netWorkingMinutes, remainingMinutes) {
             const statusElement = document.getElementById('work-status');
-            if (statusElement && progressBar) {
-                if (elapsedTotalMinutes < window.estimatedMinutes * 0.8) {
-                    statusElement.textContent = 'ON TIME';
-                    statusElement.style.backgroundColor = '#28a745';
-                    statusElement.style.color = 'white';
-                    progressBar.style.backgroundColor = '#28a745';
-                } else if (elapsedTotalMinutes < window.estimatedMinutes) {
-                    statusElement.textContent = 'PAUSE';
-                    statusElement.style.backgroundColor = '#ffc107';
-                    statusElement.style.color = 'black';
-                    progressBar.style.backgroundColor = '#ffc107';
+            const progressBar = document.getElementById('progress-bar');
+            
+            if (!statusElement || !progressBar) return;
+            
+            if (isPaused) {
+                statusElement.textContent = 'PAUSE';
+                statusElement.style.backgroundColor = '#6c757d';
+                statusElement.style.color = 'white';
+                progressBar.style.backgroundColor = '#6c757d';
+            } else if (remainingMinutes > window.estimatedMinutes * 0.2) {
+                statusElement.textContent = 'ON TIME';
+                statusElement.style.backgroundColor = '#28a745';
+                statusElement.style.color = 'white';
+                progressBar.style.backgroundColor = '#28a745';
+            } else if (remainingMinutes > 0) {
+                statusElement.textContent = 'WARNING';
+                statusElement.style.backgroundColor = '#ffc107';
+                statusElement.style.color = 'black';
+                progressBar.style.backgroundColor = '#ffc107';
+            } else {
+                statusElement.textContent = 'OVER TIME';
+                statusElement.style.backgroundColor = '#dc3545';
+                statusElement.style.color = 'white';
+                progressBar.style.backgroundColor = '#dc3545';
+            }
+        }
+        // Fungsi untuk update tombol pause/resume
+        function updatePauseButtons() {
+            const pauseBtn = document.getElementById('pause-btn');
+            const resumeBtn = document.getElementById('resume-btn');
+            
+            if (pauseBtn && resumeBtn) {
+                if (isPaused) {
+                    pauseBtn.style.display = 'none';
+                    resumeBtn.style.display = 'inline-block';
                 } else {
-                    statusElement.textContent = 'OVER TIME';
-                    statusElement.style.backgroundColor = '#dc3545';
-                    statusElement.style.color = 'white';
-                    progressBar.style.backgroundColor = '#dc3545';
+                    pauseBtn.style.display = 'inline-block';
+                    resumeBtn.style.display = 'none';
                 }
             }
         }
+
+        // Fungsi baru untuk pause work
+        function pauseWork() {
+            if (!window.issueId || isPaused) return;
+            
+            const reason = prompt('Alasan pause (opsional):') || '';
+            
+            try {
+                const response = sendPost("Issue", {
+                    type_submit: "pauseWork",
+                    No: window.issueId,
+                    reason: reason
+                });
+                
+                if (response && response.status === 'success') {
+                    isPaused = true;
+                    pauseStartTime = new Date();
+                    updatePauseButtons();
+                    showToast('⏸️ Pekerjaan di-pause');
+                } else {
+                    alert('Gagal pause: ' + (response?.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error("Error pausing work:", error);
+                alert('Error saat pause pekerjaan');
+            }
+        }
+
+        // Fungsi baru untuk resume work
+        function resumeWork() {
+            if (!window.issueId || !isPaused) return;
+            
+            try {
+                const response = sendPost("Issue", {
+                    type_submit: "resumeWork",
+                    No: window.issueId
+                });
+                
+                if (response && response.status === 'success') {
+                    // Update total pause minutes
+                    if (pauseStartTime) {
+                        const pauseDuration = Math.floor((new Date().getTime() - pauseStartTime.getTime()) / 60000);
+                        totalPauseMinutes += pauseDuration;
+                    }
+                    
+                    isPaused = false;
+                    pauseStartTime = null;
+                    updatePauseButtons();
+                    showToast('▶️ Pekerjaan dilanjutkan');
+                } else {
+                    alert('Gagal resume: ' + (response?.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error("Error resuming work:", error);
+                alert('Error saat resume pekerjaan');
+            }
+        }
+
+        // Inisialisasi saat page load
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(startWorkTimer, 1000);
+        });
+
+        // Auto refresh setiap 30 detik untuk sinkronisasi data pause
+        setInterval(() => {
+            if (window.issueId) {
+                loadPauseData();
+            }
+        }, 30000);
 
         function selesaikanIssue() {
             const solusi = document.getElementById('solusi-area').value.trim();

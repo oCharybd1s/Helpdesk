@@ -196,24 +196,404 @@ class Issue extends Encription
 		}
 	}
 
-	public function getTimerInfo($idIssue = "") {
-		$id_Issue = isset($_POST['id_Issue']) ? $_POST['id_Issue'] : $idIssue;
-		$query = "
-			SELECT AcceptWork, EstIT
-			FROM mIssue 
-			WHERE No = '$id_Issue'
-		";
-		$result = $this->db->execute($query);
-	
-		if ($result && count($result) > 0) {
-			return json_encode([
-				'status' => 'success',
-				'data' => $result[0]
-			]);
-		} else {
+	public function pauseWork(){
+		$No = $_POST['No'] ?? '';
+		$reason = $_POST['reason'] ?? '';
+		$emp_no = $_SESSION[_session_app_id]['emp_no'] ?? '';
+		
+		if (empty($No)) {
 			return json_encode([
 				'status' => 'error',
-				'message' => 'Data tidak ditemukan'
+				'message' => 'Nomor issue tidak boleh kosong'
+			]);
+		}
+		
+		if (empty($emp_no)) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Session emp_no tidak ditemukan'
+			]);
+		}
+		
+		try {
+			// Cek apakah issue sedang dikerjakan oleh user ini
+			$issueCheck = $this->db->execute("
+				SELECT Ditangani, TanggalSelesai 
+				FROM MIssue 
+				WHERE No = '$No' 
+				AND Ditangani = '$emp_no'
+				AND TanggalSelesai IS NULL
+			");
+			
+			if (empty($issueCheck)) {
+				return json_encode([
+					'status' => 'error',
+					'message' => 'Issue tidak sedang dikerjakan atau tidak ditemukan'
+				]);
+			}
+			
+			// Cek apakah sudah dalam status pause
+			$activePause = $this->db->execute("
+				SELECT TOP 1 *
+				FROM MPause
+				WHERE [No]   = '$No'   
+				AND resumed IS NULL
+				ORDER BY paused DESC;     
+			");
+			
+			if (!empty($activePause)) {
+				return json_encode([
+					'status' => 'error',
+					'message' => 'Issue sudah dalam status pause'
+				]);
+			}
+			
+			// Insert pause record
+			$pauseTime = date('Y-m-d H:i:s');
+			
+			$result = $this->db->execute("
+				INSERT INTO MPause (No, paused, reason) 
+				VALUES ('$No', '$pauseTime', '$reason')
+			");
+			
+			if ($result) {
+				return json_encode([
+					'status' => 'success',
+					'message' => 'Pekerjaan berhasil di-pause',
+					'data' => [
+						'pause_time' => $pauseTime,
+						'reason' => $reason
+					]
+				]);
+			} else {
+				return json_encode([
+					'status' => 'error',
+					'message' => 'Gagal menyimpan data pause'
+				]);
+			}
+			
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Database error: ' . $e->getMessage()
+			]);
+		}
+	}
+
+	// Method untuk resume work
+	private function calculatePauseDuration($startTime, $endTime)
+{
+    try {
+        // Convert ke string jika berupa object
+        if (is_object($startTime)) {
+            if (isset($startTime->date)) {
+                $startTime = $startTime->date;
+            } else {
+                $startTime = (string) $startTime;
+            }
+        }
+        
+        if (is_object($endTime)) {
+            if (isset($endTime->date)) {
+                $endTime = $endTime->date;
+            } else {
+                $endTime = (string) $endTime;
+            }
+        }
+        
+        // Pastikan format string yang benar
+        $startTime = trim($startTime);
+        $endTime = trim($endTime);
+        
+        // Create DateTime objects
+        $start = new DateTime($startTime);
+        $end = new DateTime($endTime);
+        
+        // Calculate difference in minutes
+        $diff = $end->getTimestamp() - $start->getTimestamp();
+        return floor($diff / 60);
+        
+    } catch (Exception $e) {
+        // Log error untuk debugging
+        error_log("calculatePauseDuration error: " . $e->getMessage());
+        error_log("startTime: " . print_r($startTime, true));
+        error_log("endTime: " . print_r($endTime, true));
+        
+        // Return 0 jika ada error
+        return 0;
+    }
+}
+
+	// Fixed resumeWork method dengan error handling yang lebih baik
+	public function resumeWork()
+	{
+		$No = $_POST['No'] ?? '';
+		$emp_no = $_SESSION[_session_app_id]['emp_no'] ?? '';
+		
+		if (empty($No)) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Nomor issue tidak boleh kosong'
+			]);
+		}
+		
+		if (empty($emp_no)) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Session emp_no tidak ditemukan'
+			]);
+		}
+		
+		try {
+			// Cari pause record yang aktif
+			$activePause = $this->db->execute("
+				SELECT TOP 1 *
+				FROM MPause
+				WHERE [No] = '$No'   
+				AND resumed IS NULL
+				ORDER BY paused DESC
+			");
+			
+			if (empty($activePause)) {
+				return json_encode([
+					'status' => 'error',
+					'message' => 'Tidak ada pause aktif yang ditemukan'
+				]);
+			}
+			
+			$pauseRecord = $activePause[0];
+			$pausedTime = $pauseRecord['paused'];
+			$resumeTime = date('Y-m-d H:i:s');
+			
+			// Debug log untuk melihat format data
+			error_log("pausedTime type: " . gettype($pausedTime));
+			error_log("pausedTime value: " . print_r($pausedTime, true));
+			
+			// Update pause record dengan waktu resume
+			$result = $this->db->execute("
+				UPDATE MPause 
+				SET resumed = '$resumeTime'
+				WHERE [No] = '$No'   
+				AND resumed IS NULL
+			");
+			
+			if ($result) {
+				// Calculate pause duration dengan error handling
+				$pauseDuration = $this->calculatePauseDuration($pausedTime, $resumeTime);
+				
+				return json_encode([
+					'status' => 'success',
+					'message' => 'Pekerjaan berhasil dilanjutkan',
+					'data' => [
+						'resume_time' => $resumeTime,
+						'pause_duration' => $pauseDuration,
+						'debug' => [
+							'paused_time_type' => gettype($pausedTime),
+							'paused_time_value' => is_object($pausedTime) ? 'object' : $pausedTime
+						]
+					]
+				]);
+			} else {
+				return json_encode([
+					'status' => 'error',
+					'message' => 'Gagal update data resume'
+				]);
+			}
+			
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Database error: ' . $e->getMessage(),
+				'debug' => [
+					'error_line' => $e->getLine(),
+					'error_file' => $e->getFile()
+				]
+			]);
+		}
+	}
+
+	// Method untuk mendapatkan data pause
+	public function getPauseData()
+	{
+		$No = $_POST['No'] ?? '';
+		$emp_no = $_SESSION[_session_app_id]['emp_no'] ?? '';
+		
+		if (empty($No)) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Nomor issue tidak boleh kosong'
+			]);
+		}
+		
+		if (empty($emp_no)) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Session emp_no tidak ditemukan'
+			]);
+		}
+		
+		try {
+			// Hitung total pause yang sudah selesai
+			$completedPauses = $this->db->execute("
+				SELECT paused, resumed
+				FROM MPause 
+				WHERE No = '$No' 
+				AND resumed IS NOT NULL
+			");
+			
+			$totalPauseMinutes = 0;
+			foreach ($completedPauses as $pause) {
+				$totalPauseMinutes += $this->calculatePauseDuration($pause['paused'], $pause['resumed']);
+			}
+			
+			// Cek apakah ada pause yang masih aktif
+			$activePause = $this->db->execute("
+				SELECT TOP 1 *
+				FROM MPause
+				WHERE [No]   = '$No'   
+				AND resumed IS NULL
+				ORDER BY paused DESC; 
+			");
+			
+			$isPaused = !empty($activePause);
+			$currentPauseStart = $isPaused ? $activePause[0]['paused'] : null;
+			
+			return json_encode([
+				'status' => 'success',
+				'message' => 'Data pause berhasil diambil',
+				'totalPause' => $totalPauseMinutes,
+				'isPaused' => $isPaused,
+				'currentPauseStart' => $currentPauseStart
+			]);
+			
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Database error: ' . $e->getMessage()
+			]);
+		}
+	}
+
+	// Method untuk mendapatkan riwayat pause (opsional)
+	public function getPauseHistory()
+	{
+		$No = $_POST['No'] ?? '';
+		$emp_no = $_SESSION[_session_app_id]['emp_no'] ?? '';
+		
+		if (empty($No)) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Nomor issue tidak boleh kosong'
+			]);
+		}
+		
+		try {
+			$pauseHistory = $this->db->execute("
+				SELECT 
+					paused,
+					resumed,
+					reason,
+					CASE 
+						WHEN resumed IS NULL THEN 'Active'
+						ELSE 'Completed'
+					END as status
+				FROM MPause 
+				WHERE No = '$No' 
+				AND emp_no = '$emp_no'
+				ORDER BY paused DESC
+			");
+			
+			// Hitung durasi untuk setiap pause
+			foreach ($pauseHistory as &$pause) {
+				if ($pause['resumed']) {
+					$pause['duration_minutes'] = $this->calculatePauseDuration($pause['paused'], $pause['resumed']);
+				} else {
+					$pause['duration_minutes'] = null; // Masih aktif
+				}
+			}
+			
+			return json_encode([
+				'status' => 'success',
+				'message' => 'Riwayat pause berhasil diambil',
+				'data' => $pauseHistory
+			]);
+			
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Database error: ' . $e->getMessage()
+			]);
+		}
+	}
+
+	// Update method getTimerInfo yang sudah ada untuk include pause data
+	public function getTimerInfo()
+	{
+		$id_Issue = $_POST['id_Issue'] ?? '';
+		
+		if (empty($id_Issue)) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'ID Issue tidak boleh kosong'
+			]);
+		}
+		
+		try {
+			// Get issue data (gunakan query yang sudah ada)
+			$issueData = $this->db->execute("
+				SELECT AcceptWork, EstIT, TanggalSelesai, Ditangani
+				FROM MIssue 
+				WHERE No = '$id_Issue'
+			");
+			
+			if (empty($issueData)) {
+				return json_encode([
+					'status' => 'error',
+					'message' => 'Issue tidak ditemukan'
+				]);
+			}
+			
+			$issue = $issueData[0];
+			
+			// Tambahkan data pause jika ada
+			$emp_no = $_SESSION[_session_app_id]['emp_no'] ?? '';
+			$pauseInfo = [];
+			
+			if (!empty($emp_no)) {
+				$pauseData = $this->db->execute("
+					SELECT paused, resumed
+					FROM MPause 
+					WHERE No = '$id_Issue' 
+					AND emp_no = '$emp_no'
+				");
+				
+				$totalPauseMinutes = 0;
+				$hasActivePause = false;
+				
+				foreach ($pauseData as $pause) {
+					if ($pause['resumed']) {
+						$totalPauseMinutes += $this->calculatePauseDuration($pause['paused'], $pause['resumed']);
+					} else {
+						$hasActivePause = true;
+					}
+				}
+				
+				$pauseInfo = [
+					'total_pause_minutes' => $totalPauseMinutes,
+					'has_active_pause' => $hasActivePause
+				];
+			}
+			
+			return json_encode([
+				'status' => 'success',
+				'message' => 'Timer info berhasil diambil',
+				'data' => array_merge($issue, $pauseInfo)
+			]);
+			
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Database error: ' . $e->getMessage()
 			]);
 		}
 	}
@@ -759,8 +1139,7 @@ class Issue extends Encription
 		return json_encode(intval($result[0]['MPATA'])); 
 	}
 
-	public function getNotif($id='') {
-		$id = isset($_POST['id']) ? $_POST['id'] : '';
+	public function getNotif() {
 		$query = "
 			SELECT mc1.*
 				, (
@@ -775,7 +1154,6 @@ class Issue extends Encription
 				WHERE isRead = 0
 				GROUP BY NoIssue
 			) latest ON mc1.NoIssue = latest.NoIssue AND mc1.Waktu = latest.MaxWaktu
-			WHERE idUser = $id
 			ORDER BY mc1.Waktu DESC
 		";
 	
