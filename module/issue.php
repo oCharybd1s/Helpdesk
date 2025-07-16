@@ -413,19 +413,32 @@ class Issue extends Encription
 	}
 
 	// Method untuk mendapatkan data pause
-	public function getPauseData()
-	{
+	public function getPauseData(){
+		error_log("=== DEBUG getPauseData START ===");
+		
+		// Debug POST data
+		error_log("POST data received: " . print_r($_POST, true));
+		
 		$No = $_POST['No'] ?? '';
-		$emp_no = $_SESSION[_session_app_id]['emp_no'] ?? '';
+		error_log("No extracted: '" . $No . "'");
 		
 		if (empty($No)) {
+			error_log("ERROR: No is empty");
 			return json_encode([
 				'status' => 'error',
 				'message' => 'Nomor issue tidak boleh kosong'
 			]);
 		}
 		
+		// Debug session data
+		error_log("Session data: " . print_r($_SESSION, true));
+		
+		// Fix: Get emp_no from session
+		$emp_no = $_SESSION[_session_app_id]['emp_no'] ?? '';
+		error_log("emp_no from session: '" . $emp_no . "'");
+		
 		if (empty($emp_no)) {
+			error_log("ERROR: emp_no is empty from session");
 			return json_encode([
 				'status' => 'error',
 				'message' => 'Session emp_no tidak ditemukan'
@@ -433,47 +446,128 @@ class Issue extends Encription
 		}
 		
 		try {
-			// Hitung total pause yang sudah selesai
-			$completedPauses = $this->db->execute("
-				SELECT paused, resumed
+			// Query untuk menghitung total pause dengan presisi milidetik
+			$totalPauseQuery = "
+				SELECT 
+					SUM(CASE 
+						WHEN resumed IS NOT NULL THEN 
+							DATEDIFF(MILLISECOND, paused, resumed)
+						ELSE 0
+					END) as total_pause_milliseconds,
+					COUNT(CASE WHEN resumed IS NULL THEN 1 END) as active_pause_count
 				FROM MPause 
-				WHERE No = '$No' 
-				AND resumed IS NOT NULL
-			");
+				WHERE No = '$No'
+			";
+			error_log("Total pause query (millisecond precision): " . $totalPauseQuery);
+		
+			$pauseResult = $this->db->execute($totalPauseQuery);
+			error_log("Total pause result: " . print_r($pauseResult, true));
+		
+			// Ambil hasil dalam milidetik
+			$totalPauseMilliseconds = $pauseResult[0]['total_pause_milliseconds'] ?? 0;
+			$activePauseCount = $pauseResult[0]['active_pause_count'] ?? 0;
+		
+			error_log("Total pause milliseconds: " . $totalPauseMilliseconds);
 			
-			$totalPauseMinutes = 0;
-			foreach ($completedPauses as $pause) {
-				$totalPauseMinutes += $this->calculatePauseDuration($pause['paused'], $pause['resumed']);
+			// Konversi milidetik ke jam:menit:detik untuk display
+			$totalPauseDisplay = $this->convertMillisecondsToDisplay($totalPauseMilliseconds);
+			
+			// Juga hitung dalam menit untuk kompatibilitas dengan JavaScript timer
+			$totalPauseMinutes = floor($totalPauseMilliseconds / (1000 * 60));
+			
+			error_log("Total pause display: " . $totalPauseDisplay);
+			error_log("Total pause minutes: " . $totalPauseMinutes);
+			error_log("Active pause count: " . $activePauseCount);
+		
+			// Cek apakah sedang dalam status pause
+			$isPaused = $activePauseCount > 0;
+		
+			// Ambil current pause start jika ada pause aktif
+			$currentPauseStart = null;
+			if ($isPaused) {
+				$activePauseQuery = "
+					SELECT TOP 1 paused
+					FROM MPause
+					WHERE [No] = '$No'   
+					AND resumed IS NULL
+					ORDER BY paused DESC
+				";
+				error_log("Active pause query: " . $activePauseQuery);
+				
+				$activePause = $this->db->execute($activePauseQuery);
+				error_log("Active pause result: " . print_r($activePause, true));
+				
+				if (!empty($activePause)) {
+					$currentPauseStart = $activePause[0]['paused'];
+					error_log("Current pause start time: " . print_r($currentPauseStart, true));
+				}
+			} else {
+				error_log("No active pause found");
 			}
-			
-			// Cek apakah ada pause yang masih aktif
-			$activePause = $this->db->execute("
-				SELECT TOP 1 *
-				FROM MPause
-				WHERE [No]   = '$No'   
-				AND resumed IS NULL
-				ORDER BY paused DESC; 
-			");
-			
-			$isPaused = !empty($activePause);
-			$currentPauseStart = $isPaused ? $activePause[0]['paused'] : null;
-			
-			return json_encode([
+		
+			error_log("Is currently paused: " . ($isPaused ? 'YES' : 'NO'));
+			error_log("Final total pause display: " . $totalPauseDisplay);
+		
+			// Prepare response dengan format display yang presisi
+			$responseData = [
 				'status' => 'success',
 				'message' => 'Data pause berhasil diambil',
-				'totalPause' => $totalPauseMinutes,
+				'totalPause' => $totalPauseMinutes, // Untuk kompatibilitas (dalam menit)
+				'totalPauseDisplay' => $totalPauseDisplay, // Format HH:MM:SS untuk display
+				'totalPauseMilliseconds' => $totalPauseMilliseconds, // Data mentah untuk perhitungan lanjutan
 				'isPaused' => $isPaused,
 				'currentPauseStart' => $currentPauseStart
-			]);
+			];
+			
+			error_log("Response data prepared: " . print_r($responseData, true));
+			
+			$jsonResponse = json_encode($responseData);
+			error_log("Final JSON response: " . $jsonResponse);
+			error_log("=== DEBUG getPauseData END (SUCCESS) ===");
+			
+			return $jsonResponse;
 			
 		} catch (Exception $e) {
-			return json_encode([
+			error_log("=== EXCEPTION in getPauseData ===");
+			error_log("Exception message: " . $e->getMessage());
+			error_log("Exception line: " . $e->getLine());
+			error_log("Exception file: " . $e->getFile());
+			error_log("Exception trace: " . $e->getTraceAsString());
+			
+			$errorResponse = [
 				'status' => 'error',
-				'message' => 'Database error: ' . $e->getMessage()
-			]);
+				'message' => 'Database error: ' . $e->getMessage(),
+				'debug' => [
+					'line' => $e->getLine(),
+					'file' => basename($e->getFile()),
+					'trace' => $e->getTraceAsString()
+				]
+			];
+			
+			error_log("Error response: " . json_encode($errorResponse));
+			error_log("=== DEBUG getPauseData END (ERROR) ===");
+			
+			return json_encode($errorResponse);
 		}
 	}
 
+	private function convertMillisecondsToDisplay($milliseconds) {
+		if ($milliseconds <= 0) {
+			return "00:00:00";
+		}
+		
+		// Konversi ke detik (dengan pembulatan)
+		$totalSeconds = round($milliseconds / 1000);
+		
+		// Hitung jam, menit, detik
+		$hours = floor($totalSeconds / 3600);
+		$minutes = floor(($totalSeconds % 3600) / 60);
+		$seconds = $totalSeconds % 60;
+		
+		// Format dengan leading zeros
+		return sprintf("%02d:%02d:%02d", $hours, $minutes, $seconds);
+	}
+	
 	// Method untuk mendapatkan riwayat pause (opsional)
 	public function getPauseHistory()
 	{
@@ -556,40 +650,32 @@ class Issue extends Encription
 			$issue = $issueData[0];
 			
 			// Tambahkan data pause jika ada
-			$emp_no = $_SESSION[_session_app_id]['emp_no'] ?? '';
-			$pauseInfo = [];
-			
-			if (!empty($emp_no)) {
-				$pauseData = $this->db->execute("
-					SELECT paused, resumed
-					FROM MPause 
-					WHERE No = '$id_Issue' 
-					AND emp_no = '$emp_no'
-				");
-				
-				$totalPauseMinutes = 0;
-				$hasActivePause = false;
-				
-				foreach ($pauseData as $pause) {
-					if ($pause['resumed']) {
-						$totalPauseMinutes += $this->calculatePauseDuration($pause['paused'], $pause['resumed']);
-					} else {
-						$hasActivePause = true;
-					}
-				}
-				
-				$pauseInfo = [
-					'total_pause_minutes' => $totalPauseMinutes,
-					'has_active_pause' => $hasActivePause
-				];
-			}
-			
-			return json_encode([
-				'status' => 'success',
-				'message' => 'Timer info berhasil diambil',
-				'data' => array_merge($issue, $pauseInfo)
-			]);
-			
+			$pauseQuery = "
+			SELECT 
+				SUM(DATEDIFF(MINUTE, paused, resumed)) as total_pause_minutes,
+				COUNT(CASE WHEN resumed IS NULL THEN 1 END) as active_pause_count
+			FROM MPause 
+			WHERE No = '$id_Issue'
+			";
+
+			$pauseResult = $this->db->execute($pauseQuery);
+
+			// Langsung assign hasil ke variable
+			$totalPauseMinutes = $pauseResult[0]['total_pause_minutes'] ?? 0;
+			$hasActivePause = ($pauseResult[0]['active_pause_count'] ?? 0) > 0;
+
+			// PauseInfo langsung berisi hasil final
+			$pauseInfo = [
+				'total_pause_minutes' => $totalPauseMinutes,
+				'has_active_pause' => $hasActivePause
+			];
+
+		return json_encode([
+			'status' => 'success',
+			'message' => 'Timer info berhasil diambil',
+			'data' => array_merge($issue, $pauseInfo)
+		]);
+					
 		} catch (Exception $e) {
 			return json_encode([
 				'status' => 'error',

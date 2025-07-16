@@ -942,10 +942,18 @@
         }
 
         function updateTotalPauseDisplay(totalPauseSeconds) {
-            const minutes = Math.floor(totalPauseSeconds / 60);
+            const hours   = Math.floor(totalPauseSeconds / 3600);
+            const minutes = Math.floor((totalPauseSeconds % 3600) / 60); 
             const seconds = totalPauseSeconds % 60;
-            
-            const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            const timeString =
+            hours > 0
+                ? `${hours.toString().padStart(2, '0')}:${minutes
+                    .toString()
+                    .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+                : `${minutes.toString().padStart(2, '0')}:${seconds
+                    .toString()
+                    .padStart(2, '0')}`;
             
             const pauseElement = document.getElementById('total-pause-time');
             if (pauseElement) {
