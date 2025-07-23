@@ -1166,7 +1166,7 @@ selectedFiles = [];
             No: issueNo
         }).then(response => {
             if (response.status === 'success') {
-                const basePath = '/upload/'; // sesuaikan path folder upload
+                const basePath = '/upload/';
                 imageContainer.innerHTML = '';
 
                 if (response.data.length === 0) {
@@ -1202,5 +1202,8 @@ selectedFiles = [];
 // Initialize everything after DOM is ready
 console.log('Script loaded, initializing workflow...');
 initializeWorkflow();
-loadChatHistory();
+chatRefreshInterval = setInterval(() => {
+            console.log("Auto refreshing chat...");
+            loadChatHistory();
+        }, 1000);
 </script>

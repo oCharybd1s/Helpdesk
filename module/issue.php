@@ -751,36 +751,262 @@ class Issue extends Encription
 		]);
 	}
 
-	public function getAllPengajuan($page = 1, $rowsPerPage = 20) {
-		$page = isset($_POST['page']) ? $_POST['page'] : $page;
-		$offset = ($page - 1) * $rowsPerPage;
-		$emp_no = $_SESSION[_session_app_id]['emp_no'];
-
-		// Hitung total data
-		$countResult = $this->db->execute("SELECT COUNT(*) AS total FROM mPengajuan WHERE dari = '$emp_no' OR kepada  = '$emp_no' OR up  = '$emp_no'");
-		$totalCount = $countResult[0]['total'];
-
-		// Ambil data + status
-		$result = $this->db->execute("
-			SELECT 
-				p.*, 
-				CASE 
-					WHEN a.NoPeng IS NOT NULL THEN '<span class=\"badge rounded-pill bg-label-info\">Completed</span>'
-					WHEN p.tanggalKonfirmasi IS NOT NULL THEN '<span class=\"badge rounded-pill bg-label-warning\">In Progress</span>'
-					ELSE '<span class=\"badge rounded-pill bg-label-success\">Open</span>'
-				END AS Status
-			FROM mPengajuan p
-			LEFT JOIN ACCPENGAJUAN a ON p.No = a.NoPeng
-			WHERE p.dari = '$emp_no'
-			ORDER BY p.tanggal DESC
-			OFFSET $offset ROWS 
-			FETCH NEXT $rowsPerPage ROWS ONLY
-		");
-
-		return json_encode([
-			'data' => $result,
-			'total_count' => $totalCount
-		]);
+	public function getAllPengajuanForIT() {
+		$emp_no = $_SESSION[_session_app_id]['emp_no'] ?? '';
+		$department = $_SESSION[_session_app_id]['id_dept'] ?? '';
+		$page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+		$limit = isset($_POST['limit']) ? intval($_POST['limit']) : 20;
+		$offset = ($page - 1) * $limit;
+		
+		try {
+			// Cek apakah user adalah bagian dari IT department
+			$isITDepartment = $this->checkITDepartmentAccess($emp_no);
+			
+			if (!$isITDepartment) {
+				return json_encode([
+					'status' => 'error', 
+					'message' => 'Access denied. Only IT Department can view all submissions.',
+					'data' => []
+				]);
+			}
+			
+			// Query untuk mendapatkan semua pengajuan dengan konfirmasi = '0' (untuk IT review)
+			$query = "
+				SELECT * FROM mPengajuan
+				WHERE konfirmasi = '0'
+				ORDER BY Tanggal DESC
+			";
+			
+			// Execute query with pagination
+			if ($limit > 0) {
+				$query .= " OFFSET $offset ROWS FETCH NEXT $limit ROWS ONLY";
+			}
+			
+			$result = $this->db->execute($query);
+			
+			// Query untuk total count
+			$countQuery = "SELECT COUNT(*) as total FROM mPengajuan WHERE konfirmasi = '0'";
+			$countResult = $this->db->execute($countQuery);
+			$totalCount = $countResult[0]['total'] ?? 0;
+			
+			// Format status dan currency untuk setiap record
+			foreach ($result as $key => $row) {
+				$result[$key]['Status'] = $this->formatStatusBadge($row['Status'] ?? 'Pending');
+				$result[$key]['biaya'] = $this->formatCurrency($row['biaya'] ?? 0);
+			}
+			
+			return json_encode([
+				'status' => 'success',
+				'data' => $result,
+				'total_count' => $totalCount,
+				'current_page' => $page,
+				'per_page' => $limit
+			]);
+			
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Error: ' . $e->getMessage(),
+				'data' => []
+			]);
+		}
+	}
+	
+	public function getAllPengajuan() {
+		$emp_no = $_SESSION[_session_app_id]['emp_no'] ?? '';
+		$page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+		$limit = isset($_POST['limit']) ? intval($_POST['limit']) : 20;
+		$offset = ($page - 1) * $limit;
+		
+		try {
+			// Query untuk mendapatkan pengajuan milik user saat ini dengan konfirmasi = '1'
+			$query = "
+				SELECT * FROM mPengajuan
+				WHERE dari = '$emp_no' AND konfirmasi = '1'
+				ORDER BY Tanggal DESC
+			";
+			
+			// Execute query with pagination
+			if ($limit > 0) {
+				$query .= " OFFSET $offset ROWS FETCH NEXT $limit ROWS ONLY";
+			}
+			
+			$result = $this->db->execute($query);
+			
+			// Query untuk total count
+			$countQuery = "SELECT COUNT(*) as total FROM mPengajuan WHERE dari = '$emp_no' AND konfirmasi = '1'";
+			$countResult = $this->db->execute($countQuery);
+			$totalCount = $countResult[0]['total'] ?? 0;
+			
+			// Format status dan currency untuk setiap record
+			foreach ($result as $key => $row) {
+				$result[$key]['Status'] = $this->formatStatusBadge($row['Status'] ?? 'Pending');
+				$result[$key]['biaya'] = $this->formatCurrency($row['biaya'] ?? 0);
+			}
+			
+			return json_encode([
+				'status' => 'success',
+				'data' => $result,
+				'total_count' => $totalCount,
+				'current_page' => $page,
+				'per_page' => $limit
+			]);
+			
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Error: ' . $e->getMessage(),
+				'data' => []
+			]);
+		}
+	}
+	
+	public function checkITDepartmentAccess($emp_no) {
+		try {
+			// Cek dari database lokal atau session
+			$department = $_SESSION[_session_app_id]['id_dept'] ?? '';
+			
+			// Jika department sudah ada di session
+			if ($department === '1') {
+				return true;
+			}
+			
+			return false;
+		} catch (Exception $e) {
+			return false;
+		}
+	}
+	
+	public function formatStatusBadge($status) {
+		$status = strtolower(trim($status));
+		
+		switch ($status) {
+			case 'pending':
+				return '<span class="badge badge-pending">Pending</span>';
+			case 'approved':
+			case 'disetujui':
+				return '<span class="badge badge-approved">Approved</span>';
+			case 'rejected':
+			case 'ditolak':
+				return '<span class="badge badge-rejected">Rejected</span>';
+			case 'review':
+			case 'under review':
+			case 'dalam review':
+				return '<span class="badge badge-review">Under Review</span>';
+			default:
+				return '<span class="badge badge-pending">Pending</span>';
+		}
+	}
+	
+	public function formatCurrency($amount) {
+		if (is_numeric($amount)) {
+			return 'Rp ' . number_format($amount, 0, ',', '.');
+		}
+		return $amount;
+	}
+	
+	public function getPengajuanById($id) {
+		try {
+			$query = "
+				SELECT 
+					p.*,
+					-- Informasi pegawai dari
+					pg_dari.first_name as emp_name_dari,
+					pg_dari.id_dept as dept_dari,
+					-- Informasi pegawai kepada  
+					pg_kepada.first_name as emp_name_kepada,
+					pg_kepada.id_dept as dept_kepada,
+					-- Informasi pegawai up
+					pg_up.first_name as emp_name_up,
+					pg_up.id_dept as dept_up
+				FROM mPengajuan p
+				LEFT JOIN (
+					SELECT emp_no, first_name, id_dept 
+					FROM GetAllPegawai_View 
+				) pg_dari ON p.Dari = pg_dari.emp_no
+				LEFT JOIN (
+					SELECT emp_no, first_name, id_dept 
+					FROM GetAllPegawai_View 
+				) pg_kepada ON p.Kepada = pg_kepada.emp_no
+				LEFT JOIN (
+					SELECT emp_no, first_name, id_dept 
+					FROM GetAllPegawai_View 
+				) pg_up ON p.up = pg_up.emp_no
+				WHERE p.No = '$id'
+			";
+			
+			$result = $this->db->execute($query);
+			
+			if (!empty($result)) {
+				// Get attachments
+				$attachQuery = "SELECT * FROM GBPengajuan WHERE No = '$id' ORDER BY Seq";
+				$attachments = $this->db->execute($attachQuery);
+				$result[0]['attachments'] = $attachments;
+				
+				return json_encode([
+					'status' => 'success',
+					'data' => $result[0]
+				]);
+			} else {
+				return json_encode([
+					'status' => 'error',
+					'message' => 'Pengajuan tidak ditemukan'
+				]);
+			}
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Error: ' . $e->getMessage()
+			]);
+		}
+	}
+	
+	public function updatePengajuanStatus() {
+		$no = isset($_POST['No']) ? trim(strval($_POST['No'])) : "";
+		$status = isset($_POST['status']) ? trim(strval($_POST['status'])) : "";
+		$keterangan_it = isset($_POST['keterangan_it']) ? trim(strval($_POST['keterangan_it'])) : "";
+		$emp_no = $_SESSION[_session_app_id]['emp_no'] ?? '';
+		
+		try {
+			// Cek akses IT department
+			$isITDepartment = $this->checkITDepartmentAccess($emp_no);
+			
+			if (!$isITDepartment) {
+				return json_encode([
+					'status' => 'error', 
+					'message' => 'Access denied. Only IT Department can update status.'
+				]);
+			}
+			
+			$updateData = [
+				"Status" => $status,
+				"updated_at" => date("Y-m-d H:i:s"),
+				"updated_by" => $emp_no
+			];
+			
+			if (!empty($keterangan_it)) {
+				$updateData["keterangan_it"] = $keterangan_it;
+			}
+			
+			$result = $this->db->update("mPengajuan", $updateData, ["No" => $no]);
+			
+			if ($result) {
+				return json_encode([
+					'status' => 'success',
+					'message' => 'Status pengajuan berhasil diupdate'
+				]);
+			} else {
+				return json_encode([
+					'status' => 'error', 
+					'message' => 'Failed to update status'
+				]);
+			}
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error', 
+				'message' => 'Error: ' . $e->getMessage()
+			]);
+		}
 	}
 	
 	public function getApk(){
@@ -1225,7 +1451,8 @@ class Issue extends Encription
 		return json_encode(intval($result[0]['MPATA'])); 
 	}
 
-	public function getNotif() {
+	public function getNotif($id_issue = "") {
+		$id_issue = isset($_POST['id_issue']) ? trim($_POST['id_issue']) : trim($id_issue);
 		$query = "
 			SELECT mc1.*
 				, (
@@ -1240,6 +1467,7 @@ class Issue extends Encription
 				WHERE isRead = 0
 				GROUP BY NoIssue
 			) latest ON mc1.NoIssue = latest.NoIssue AND mc1.Waktu = latest.MaxWaktu
+			WHERE idUser = '$id_issue'
 			ORDER BY mc1.Waktu DESC
 		";
 	
@@ -1557,6 +1785,211 @@ class Issue extends Encription
 	
 		return "{$prefix}{$urutan}";
 	}	
+
+	public function getPendingIssues($page = 1, $rowsPerPage = 20) {
+		$page = isset($_POST['page']) ? $_POST['page'] : $page; 
+		$rowsPerPage = isset($_POST['rowsPerPage']) ? $_POST['rowsPerPage'] : $rowsPerPage;
+		$offset = ($page - 1) * $rowsPerPage;
+		
+		try {
+			// Count total pending issues
+			$countQuery = "
+				SELECT COUNT(*) AS total 
+				FROM MIssue 
+				WHERE Konfirmasi = 0
+				AND Ditangani IS NULL 
+				AND TanggalSelesai IS NULL
+			";
+			$countResult = $this->db->execute($countQuery);
+			$totalCount = $countResult ? $countResult[0]['total'] : 0;
+			
+			// Get pending issues with pagination
+			$query = "
+				SELECT * 
+				FROM MIssue 
+				WHERE Konfirmasi = 0 
+				AND Ditangani IS NULL 
+				AND TanggalSelesai IS NULL
+				ORDER BY Tanggal DESC
+				OFFSET $offset ROWS
+				FETCH NEXT $rowsPerPage ROWS ONLY
+			";
+			$result = $this->db->execute($query);
+			
+			return json_encode([
+				'status' => 'success',
+				'data' => $result,
+				'total_count' => $totalCount,
+				'current_page' => $page,
+				'rows_per_page' => $rowsPerPage
+			]);
+			
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Database error: ' . $e->getMessage(),
+				'data' => [],
+				'total_count' => 0
+			]);
+		}
+	}
+	
+	public function acceptIssue() {
+		$issueNo = isset($_POST['issueNo']) ? trim($_POST['issueNo']) : '';
+		$notes = isset($_POST['notes']) ? trim($_POST['notes']) : '';
+		$currentUser = $_SESSION[_session_app_id]['emp_no'] ?? '';
+		$currentTime = date('Y-m-d H:i:s');
+		
+		if (empty($issueNo)) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Issue number is required'
+			]);
+		}
+		
+		try {
+			// Update issue to set konfirmasi = 1 and other details
+			$query = "
+				UPDATE MIssue 
+				SET Konfirmasi = 1,
+					TanggalKonfirmasi = $currentTime,
+					NotePATA = $notes
+				WHERE No = $issueNo
+			";
+			
+			$result = $this->db->execute($query);
+			
+			if ($result) {
+				return json_encode([
+					'status' => 'success',
+					'message' => 'Issue accepted successfully',
+					'issueNo' => $issueNo
+				]);
+			} else {
+				return json_encode([
+					'status' => 'error',
+					'message' => 'Failed to accept issue'
+				]);
+			}
+			
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Database error: ' . $e->getMessage()
+			]);
+		}
+	}
+	
+	public function denyIssue() {
+		$issueNo = isset($_POST['issueNo']) ? trim($_POST['issueNo']) : '';
+		$notes = isset($_POST['notes']) ? trim($_POST['notes']) : '';
+		$currentUser = $_SESSION[_session_app_id]['emp_no'] ?? '';
+		$currentTime = date('Y-m-d H:i:s');
+		
+		if (empty($issueNo)) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Issue number is required'
+			]);
+		}
+		
+		try {
+			// Update issue to set konfirmasi = 0 (denied) and add notes
+			$query = "
+				UPDATE MIssue 
+				SET Konfirmasi = 0,
+					TanggalKonfirmasi = ?,
+					NotePATA = ?,
+					Status = 'Denied'
+				WHERE No = ?
+			";
+			
+			$result = $this->db->execute($query, [
+				$currentTime,
+				$notes,
+				$issueNo
+			]);
+			
+			if ($result) {
+				return json_encode([
+					'status' => 'success',
+					'message' => 'Issue denied successfully',
+					'issueNo' => $issueNo
+				]);
+			} else {
+				return json_encode([
+					'status' => 'error',
+					'message' => 'Failed to deny issue'
+				]);
+			}
+			
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Database error: ' . $e->getMessage()
+			]);
+		}
+	}
+	
+	public function updateAtP() {
+		$status = isset($_POST['status']) ? intval($_POST['status']) : 0;
+		
+		try {
+			// Check if record exists in MAtp table
+			$checkQuery = "SELECT COUNT(*) as count FROM MAtp";
+			$checkResult = $this->db->execute($checkQuery);
+			
+			if ($checkResult && $checkResult[0]['count'] > 0) {
+				// Update existing record
+				$query = "UPDATE MAtp SET MPATA = ?";
+				$result = $this->db->execute($query, [$status]);
+			} else {
+				// Insert new record if table is empty
+				$query = "INSERT INTO MAtp (MPATA) VALUES (?)";
+				$result = $this->db->execute($query, [$status]);
+			}
+			
+			if ($result) {
+				return json_encode([
+					'status' => 'success',
+					'autopilot' => $status,
+					'message' => $status ? 'Autopilot activated' : 'Autopilot deactivated'
+				]);
+			} else {
+				return json_encode([
+					'status' => 'error',
+					'message' => 'Failed to update autopilot status'
+				]);
+			}
+			
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Database error: ' . $e->getMessage()
+			]);
+		}
+	}
+	
+	// Method untuk mendapatkan data user (jika diperlukan)
+	public function getAllUsers() {
+		try {
+			// Adjust this query based on your user table structure
+			$query = "SELECT emp_no, first_name FROM MPegawai ORDER BY first_name ASC";
+			$result = $this->db->execute($query);
+			
+			return json_encode([
+				'status' => 'success',
+				'data' => $result
+			]);
+			
+		} catch (Exception $e) {
+			return json_encode([
+				'status' => 'error',
+				'message' => 'Database error: ' . $e->getMessage(),
+				'data' => []
+			]);
+		}
+	}
 	
 
 	//-----------------------------------------------------------
@@ -1814,5 +2247,7 @@ class Issue extends Encription
 			]);
 		}
 	}
+
+	
 }
 ?>

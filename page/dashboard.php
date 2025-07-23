@@ -409,6 +409,8 @@
                 gap: 1rem;
             }
         }
+
+        
     </style>
 </head>
 <body>
@@ -766,6 +768,7 @@
         // Modifikasi fungsi checkITProgress yang sudah ada
         function checkITProgress() {
             const ditangani = "<?= $_SESSION[_session_app_id]['emp_no'] ?? '' ?>";
+            console.log("<?= $_SESSION[_session_app_id]['id_dept'] ?? '' ?>");
             console.log('👤 emp_no dari PHP session:', ditangani);
             try {
                 const result = sendPost("Issue", {
@@ -954,7 +957,7 @@
                 : `${minutes.toString().padStart(2, '0')}:${seconds
                     .toString()
                     .padStart(2, '0')}`;
-            
+            console.log(timeString);
             const pauseElement = document.getElementById('total-pause-time');
             if (pauseElement) {
                 pauseElement.textContent = timeString;
@@ -1043,45 +1046,39 @@
 
         // Fungsi baru untuk resume work
         function resumeWork() {
-            if (!window.issueId || !isPaused) return;
+            if (!currentIssueId) {
+                console.error("No current issue ID");
+                return;
+            }
             
-            try {
-                const response = sendPost("Issue", {
-                    type_submit: "resumeWork",
-                    No: window.issueId
-                });
+            console.log("Resuming work for issue:", currentIssueId);
+            
+            sendPost("Issue", { 
+                type_submit: "resumeWork", 
+                id_Issue: currentIssueId 
+            }, function(response) {
+                console.log("Resume response:", response);
                 
                 if (response && response.status === 'success') {
-                    // Update total pause minutes
-                    if (pauseStartTime) {
-                        const pauseDuration = Math.floor((new Date().getTime() - pauseStartTime.getTime()) / 60000);
-                        totalPauseMinutes += pauseDuration;
-                    }
+                    console.log("Work resumed successfully");
+                    console.log("Resume data:", response.data);
                     
-                    isPaused = false;
-                    pauseStartTime = null;
-                    updatePauseButtons();
-                    showToast('▶️ Pekerjaan dilanjutkan');
+                    setTimeout(() => {
+                        console.log("Refreshing timer data after resume...");
+                        refreshTimerData();
+                    }, 500); // Delay sebentar untuk memastikan database sudah update
+                    
                 } else {
-                    alert('Gagal resume: ' + (response?.message || 'Unknown error'));
+                    console.error("Resume failed:", response);
+                    alert("Gagal resume: " + (response.message || "Unknown error"));
                 }
-            } catch (error) {
-                console.error("Error resuming work:", error);
-                alert('Error saat resume pekerjaan');
-            }
+            });
         }
 
         // Inisialisasi saat page load
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(startWorkTimer, 1000);
         });
-
-        // Auto refresh setiap 30 detik untuk sinkronisasi data pause
-        setInterval(() => {
-            if (window.issueId) {
-                loadPauseData();
-            }
-        }, 30000);
 
         function selesaikanIssue() {
             const solusi = document.getElementById('solusi-area').value.trim();
@@ -1138,6 +1135,11 @@
                 alert('❌ Gagal menyelesaikan pekerjaan: ' + (response ? response.message : 'Unknown error'));
             }
         }
+
+        chatRefreshInterval = setInterval(() => {
+            console.log("Auto refreshing chat...");
+            loadNotifications();
+        }, 1000);
 
     </script>
 </body>
